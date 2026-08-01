@@ -1,0 +1,1169 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Ordina online</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #f7eecb;
+    --panel: #fffdf5;
+    --panel-2: #f0e6bd;
+    --ink: #2f3a20;
+    --ink-dim: #6d7a58;
+    --accent: #e2604f;
+    --accent-ink: #ffffff;
+    --accent-dim: #eeb2a8;
+    --verde: #33421f;
+    --error: #c0392b;
+    --ok: #4f7a3a;
+    --border: #e6d9a2;
+    --radius: 14px;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    padding-bottom: 90px;
+  }
+  h1, h2, h3 { margin: 0; font-family: 'Baloo 2', 'Segoe UI', sans-serif; }
+  label {
+    display: block;
+    font-size: 13px;
+    color: var(--ink-dim);
+    margin-bottom: 6px;
+    margin-top: 14px;
+  }
+  label:first-of-type { margin-top: 0; }
+  input, select, textarea {
+    width: 100%;
+    padding: 12px 14px;
+    background: #fffef9;
+    border: 1.5px solid var(--border);
+    border-radius: 8px;
+    color: var(--ink);
+    font-size: 15px;
+    outline: none;
+    font-family: inherit;
+  }
+  input:focus, select:focus, textarea:focus { border-color: var(--accent); }
+  input::placeholder { color: #b2a878; }
+
+  button {
+    padding: 13px 18px;
+    background: var(--accent);
+    color: var(--accent-ink);
+    border: none;
+    border-radius: 8px;
+    font-size: 15px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  button:hover { background: #cb4e3e; }
+  button:disabled { background: var(--accent-dim); cursor: not-allowed; }
+  button.secondary { background: transparent; border: 1.5px solid var(--border); color: var(--ink); }
+  button.secondary:hover { background: var(--panel-2); }
+
+  .msg { margin-top: 14px; padding: 11px 14px; border-radius: 8px; font-size: 13px; display: none; }
+  .msg.show { display: block; }
+  .msg.error { background: rgba(217,97,79,0.15); color: var(--error); border: 1px solid rgba(217,97,79,0.3); }
+  .msg.ok { background: rgba(127,166,107,0.15); color: var(--ok); border: 1px solid rgba(127,166,107,0.3); }
+
+  .screen { display: none; }
+  .screen.active { display: block; }
+
+  /* ---- Iscrizione ---- */
+  #iscrizione-hero {
+    height: 220px;
+    background-size: cover;
+    background-position: center;
+    position: relative;
+    display: flex;
+    align-items: flex-end;
+  }
+  #iscrizione-hero::after {
+    content: '';
+    position: absolute; inset: 0;
+    background: linear-gradient(to top, var(--verde) 0%, rgba(51,66,31,0.15) 100%);
+  }
+  #iscrizione-hero-content { position: relative; z-index: 1; padding: 20px 20px 16px; }
+  #iscrizione-logo { max-height: 50px; max-width: 60%; object-fit: contain; display: none; margin-bottom: 10px; }
+  #iscrizione-nome-locale { font-size: 24px; font-weight: 700; color: #fff; }
+
+  .card { max-width: 480px; margin: 0 auto; padding: 24px 20px; }
+
+  /* ---- Menu ---- */
+  header.menu-header {
+    padding: 16px 18px 14px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    position: sticky; top: 0; z-index: 20;
+  }
+  header.menu-header img { height: 52px; max-width: 240px; width: auto; object-fit: contain; }
+  header.menu-header .nome { font-weight: 700; font-size: 17px; text-align: center; color: var(--verde); }
+
+  nav.categorie-tabs {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    padding: 12px 18px;
+    background: var(--bg);
+    position: sticky; top: var(--header-h, 90px); z-index: 19;
+    border-bottom: 1px solid var(--border);
+  }
+  nav.categorie-tabs::-webkit-scrollbar { display: none; }
+  nav.categorie-tabs button {
+    background: var(--panel);
+    color: var(--verde);
+    font-weight: 700;
+    border: 1.5px solid var(--border);
+    padding: 9px 18px;
+    font-size: 14px;
+    white-space: nowrap;
+    flex-shrink: 0;
+    opacity: 0.6;
+  }
+  nav.categorie-tabs button.active { background: var(--verde); color: #fff; border-color: var(--verde); opacity: 1; }
+
+  main.menu-main { padding: 18px; max-width: 700px; margin: 0 auto; }
+  .categoria-blocco { margin-bottom: 28px; }
+  .categoria-titolo { font-size: 20px; font-weight: 800; margin-bottom: 4px; color: var(--verde); font-family: 'Baloo 2', sans-serif; }
+  .categoria-desc { font-size: 13px; color: var(--ink-dim); margin-bottom: 14px; }
+
+  .prodotto-card {
+    display: flex;
+    gap: 14px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px;
+    margin-bottom: 10px;
+    align-items: center;
+  }
+  .prodotto-card img { width: 64px; height: 64px; border-radius: 8px; object-fit: cover; flex-shrink: 0; }
+  .prodotto-info { flex: 1; min-width: 0; }
+  .prodotto-nome { font-weight: 700; font-size: 15px; }
+  .prodotto-desc { font-size: 12px; color: var(--ink-dim); margin-top: 2px; }
+  .prodotto-prezzo { font-weight: 700; color: var(--accent); margin-top: 6px; font-size: 14px; }
+  .btn-aggiungi { flex-shrink: 0; padding: 10px 16px; font-size: 13px; }
+
+  /* ---- Carrello flottante ---- */
+  #carrello-fab {
+    position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+    background: var(--verde); color: #fff; border-radius: 30px;
+    padding: 14px 24px; font-weight: 700; font-size: 14px;
+    display: none; align-items: center; gap: 10px; cursor: pointer;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.25); z-index: 30; border: none;
+  }
+  #carrello-fab.show { display: flex; }
+  #carrello-badge {
+    background: #fff; color: var(--verde); border-radius: 50%;
+    width: 22px; height: 22px; display: flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 800;
+  }
+
+  /* ---- Modal generico ---- */
+  .modal-backdrop {
+    display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.65);
+    align-items: flex-end; justify-content: center; z-index: 100;
+  }
+  .modal-backdrop.show { display: flex; }
+  .modal-sheet {
+    background: var(--panel); border-radius: 16px 16px 0 0;
+    width: 100%; max-width: 480px; max-height: 94vh;
+    padding: 24px 20px 20px;
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+  @media (min-width: 540px) {
+    .modal-backdrop { align-items: center; }
+    .modal-sheet { border-radius: var(--radius); max-height: 90vh; }
+  }
+  /* Il modal carrello resta a scroll unico (contenuto tipicamente più corto) */
+  #modal-carrello .modal-sheet { overflow-y: auto; display: block; max-height: 90vh; }
+
+  #modal-prodotto-dettaglio .modal-sheet > *:not(#dettaglio-variazioni) { flex-shrink: 0; }
+  #dettaglio-variazioni {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+    margin: 4px -20px;
+    padding: 4px 20px;
+  }
+
+  .var-gruppo {
+    margin-bottom: 18px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 16px;
+  }
+  .var-gruppo-titolo { font-weight: 700; font-size: 15px; margin-bottom: 4px; display: flex; justify-content: space-between; align-items:center; }
+  .var-gruppo-titolo .hint { font-size: 11px; color: var(--ink-dim); font-weight: 400; }
+  .var-opzione-riga {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 0; border-bottom: 1px solid var(--border); font-size: 15px;
+  }
+  .var-opzione-riga:last-child { border-bottom: none; }
+  .var-opzione-riga label { display:flex; align-items:center; gap:12px; margin:0; font-size:15px; color:var(--ink); flex:1; }
+  .var-opzione-riga input { width: 20px; height: 20px; accent-color: var(--accent); }
+  .var-opzione-extra { color: var(--ink-dim); font-size: 13px; }
+
+  .qty-selector { display: flex; align-items: center; gap: 14px; justify-content:center; margin: 16px 0; }
+  .qty-selector button { width: 40px; height: 40px; padding: 0; font-size: 20px; border-radius: 50%; }
+  .qty-selector .qty-val { font-size: 20px; font-weight: 700; min-width: 30px; text-align: center; }
+
+  /* ---- Carrello ---- */
+  .carrello-riga {
+    display: flex; justify-content: space-between; align-items: flex-start;
+    padding: 12px 0; border-bottom: 1px solid var(--border); gap: 10px;
+  }
+  .carrello-riga:last-child { border-bottom: none; }
+  .carrello-riga-info { flex: 1; }
+  .carrello-riga-nome { font-weight: 600; font-size: 14px; }
+  .carrello-riga-tags { font-size: 12px; color: var(--ink-dim); margin-top: 2px; }
+  .carrello-riga-prezzo { font-weight: 700; font-size: 14px; white-space: nowrap; }
+  .carrello-riga-azioni {
+    display: flex; align-items: center; gap: 8px; margin-top: 6px;
+  }
+  .qty-mini-btn {
+    width: 26px; height: 26px; padding: 0; font-size: 15px; border-radius: 50%;
+    background: var(--panel-2); border: 1px solid var(--border); color: var(--ink);
+  }
+  .qty-mini-btn:hover { background: var(--border); }
+  .qty-mini-val { font-size: 13px; font-weight: 600; min-width: 16px; text-align: center; }
+
+  .totale-riga {
+    display: flex; justify-content: space-between; font-size: 17px; font-weight: 700;
+    padding-top: 14px; margin-top: 6px; border-top: 2px solid var(--border);
+  }
+
+  .empty-state { text-align: center; padding: 40px 20px; color: var(--ink-dim); font-size: 14px; }
+  .badge { font-size: 11px; padding: 2px 8px; border-radius: 20px; background: var(--panel-2); color: var(--ink-dim); border: 1px solid var(--border); }
+
+  .footer-locale {
+    margin-top: 30px;
+    padding: 22px 18px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    text-align: center;
+  }
+  .footer-locale .footer-nome { font-weight: 700; font-size: 15px; margin-bottom: 8px; }
+  .footer-locale .footer-riga { font-size: 13px; color: var(--ink-dim); margin-top: 4px; }
+
+  /* ---- Conferma ---- */
+  #schermata-conferma .card { text-align: center; padding-top: 60px; }
+  #schermata-conferma .check-icon {
+    width: 70px; height: 70px; border-radius: 50%; background: var(--ok); color: #14170f;
+    display: flex; align-items: center; justify-content: center; font-size: 34px; margin: 0 auto 20px;
+  }
+</style>
+</head>
+<body>
+
+<!-- ============ ISCRIZIONE / ACCESSO ============ -->
+<div class="screen active" id="schermata-iscrizione">
+  <div id="iscrizione-hero">
+    <div id="iscrizione-hero-content">
+      <img id="iscrizione-logo">
+      <div id="iscrizione-nome-locale">Il tuo locale</div>
+    </div>
+  </div>
+
+  <div class="card">
+
+    <!-- ---- LOGIN ---- -->
+    <div id="vista-login">
+      <h2 style="margin-bottom:6px;">Accedi</h2>
+      <p style="color:var(--ink-dim); font-size:14px; margin:0 0 20px;">Inserisci le tue credenziali per ordinare.</p>
+      <form id="form-login-cliente">
+        <label for="login-email">Email</label>
+        <input type="email" id="login-email" placeholder="mario.rossi@email.it" required>
+        <label for="login-password">Password</label>
+        <input type="password" id="login-password" placeholder="••••••••" required>
+        <button type="submit" id="btn-login-cliente" style="width:100%; margin-top:18px;">Accedi</button>
+      </form>
+      <div class="msg" id="login-cliente-msg"></div>
+      <p style="text-align:center; margin-top:18px; font-size:13px;">
+        Non hai un account? <a href="#" id="link-vai-registrazione" style="color:var(--accent); font-weight:600;">Registrati</a>
+      </p>
+      <p style="text-align:center; margin-top:6px; font-size:13px;">
+        <a href="#" id="link-password-dimenticata" style="color:var(--ink-dim);">Password dimenticata?</a>
+      </p>
+    </div>
+
+    <!-- ---- REGISTRAZIONE ---- -->
+    <div id="vista-registrazione" style="display:none;">
+      <h2 style="margin-bottom:6px;">Crea il tuo account</h2>
+      <p style="color:var(--ink-dim); font-size:14px; margin:0 0 16px;">Bastano pochi dati per iniziare a ordinare.</p>
+      <form id="form-registrazione-cliente">
+        <label for="reg-nome">Nome</label>
+        <input type="text" id="reg-nome" placeholder="Mario" required>
+        <label for="reg-cognome">Cognome</label>
+        <input type="text" id="reg-cognome" placeholder="Rossi" required>
+        <label for="reg-indirizzo">Indirizzo</label>
+        <input type="text" id="reg-indirizzo" placeholder="Via Roma 12">
+        <label for="reg-telefono">Cellulare</label>
+        <input type="tel" id="reg-telefono" placeholder="333 1234567" required>
+        <label for="reg-email">Email</label>
+        <input type="email" id="reg-email" placeholder="mario.rossi@email.it" required>
+        <label for="reg-password">Password</label>
+        <input type="password" id="reg-password" placeholder="Almeno 6 caratteri" required minlength="6">
+        <button type="submit" id="btn-registrati" style="width:100%; margin-top:18px;">Registrati</button>
+      </form>
+      <div class="msg" id="registrazione-msg"></div>
+      <p style="text-align:center; margin-top:18px; font-size:13px;">
+        Hai già un account? <a href="#" id="link-vai-login" style="color:var(--accent); font-weight:600;">Accedi</a>
+      </p>
+    </div>
+
+    <!-- ---- RECUPERO PASSWORD ---- -->
+    <div id="vista-recupera" style="display:none;">
+      <h2 style="margin-bottom:6px;">Recupera password</h2>
+      <p style="color:var(--ink-dim); font-size:14px; margin:0 0 16px;">Ti invieremo un link via email per reimpostarla.</p>
+      <form id="form-recupera-password">
+        <label for="recupera-email">Email</label>
+        <input type="email" id="recupera-email" placeholder="mario.rossi@email.it" required>
+        <button type="submit" id="btn-recupera-password" style="width:100%; margin-top:18px;">Invia link di ripristino</button>
+      </form>
+      <div class="msg" id="recupera-msg"></div>
+      <p style="text-align:center; margin-top:18px; font-size:13px;">
+        <a href="#" id="link-torna-login" style="color:var(--accent); font-weight:600;">Torna al login</a>
+      </p>
+    </div>
+
+    <!-- ---- NUOVA PASSWORD (dopo click sul link email) ---- -->
+    <div id="vista-nuova-password" style="display:none;">
+      <h2 style="margin-bottom:6px;">Imposta una nuova password</h2>
+      <form id="form-nuova-password">
+        <label for="nuova-password-campo">Nuova password</label>
+        <input type="password" id="nuova-password-campo" placeholder="Almeno 6 caratteri" required minlength="6">
+        <button type="submit" id="btn-nuova-password" style="width:100%; margin-top:18px;">Salva nuova password</button>
+      </form>
+      <div class="msg" id="nuova-password-msg"></div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ============ MENU ============ -->
+<div class="screen" id="schermata-menu">
+  <header class="menu-header">
+    <button id="btn-account" style="position:absolute; top:14px; right:14px; width:38px; height:38px; border-radius:50%; background:var(--panel-2); border:1px solid var(--border); font-size:18px; padding:0; color:var(--verde);">⚙️</button>
+    <img id="menu-logo" style="display:none;">
+    <div class="nome" id="menu-nome-locale">—</div>
+  </header>
+  <nav class="categorie-tabs" id="categorie-tabs"></nav>
+  <main class="menu-main" id="menu-main"></main>
+
+  <button id="carrello-fab">
+    <span id="carrello-badge">0</span>
+    <span id="carrello-fab-totale">Vedi carrello — €0.00</span>
+  </button>
+</div>
+
+<!-- ============ MODAL SCELTA VARIAZIONI ============ -->
+<div class="modal-backdrop" id="modal-prodotto-dettaglio">
+  <div class="modal-sheet">
+    <img id="dettaglio-immagine" style="width:100%; height:180px; object-fit:cover; border-radius:12px; display:none; margin-bottom:16px;">
+    <h3 id="dettaglio-nome"></h3>
+    <p id="dettaglio-descrizione" style="color:var(--ink-dim); font-size:13px; margin-top:6px;"></p>
+
+    <div id="dettaglio-variazioni"></div>
+
+    <div class="qty-selector">
+      <button type="button" class="secondary" id="btn-qty-meno">−</button>
+      <span class="qty-val" id="dettaglio-qty">1</span>
+      <button type="button" class="secondary" id="btn-qty-piu">+</button>
+    </div>
+
+    <div class="msg" id="dettaglio-msg"></div>
+    <button id="btn-conferma-aggiungi" style="width:100%;">Aggiungi al carrello — €0.00</button>
+    <button class="secondary" style="width:100%; margin-top:10px;" onclick="closeModal('modal-prodotto-dettaglio')">Annulla</button>
+  </div>
+</div>
+
+<!-- ============ MODAL CARRELLO ============ -->
+<div class="modal-backdrop" id="modal-carrello">
+  <div class="modal-sheet">
+    <h3>Il tuo ordine</h3>
+    <div id="carrello-righe" style="margin-top:14px;"></div>
+    <div class="totale-riga">
+      <span>Totale</span>
+      <span id="carrello-totale">€0.00</span>
+    </div>
+
+    <div style="margin-top:20px; padding-top:18px; border-top:1px solid var(--border);">
+      <label style="margin-top:0;">Ritiro — giorno</label>
+      <input type="date" id="campo-data-ritiro" required>
+      <label for="campo-ora-ritiro">Ritiro — fascia oraria</label>
+      <select id="campo-ora-ritiro" required>
+        <option value="">Seleziona prima il giorno</option>
+      </select>
+      <label for="campo-note">Note per l'ordine <span style="font-style:italic;">(facoltative)</span></label>
+      <textarea id="campo-note" rows="2" placeholder="Es. senza cipolla, citofono rotto..."></textarea>
+    </div>
+
+    <div class="msg" id="carrello-msg"></div>
+    <button id="btn-conferma-ordine" style="width:100%; margin-top:18px;">Conferma ordine</button>
+    <button class="secondary" style="width:100%; margin-top:10px;" onclick="closeModal('modal-carrello')">Continua a ordinare</button>
+  </div>
+</div>
+
+<!-- ============ CONFERMA ORDINE ============ -->
+<div class="screen" id="schermata-conferma">
+  <div class="card">
+    <div class="check-icon">✓</div>
+    <h2>Ordine ricevuto!</h2>
+    <p style="color:var(--ink-dim); margin-top:10px;">Il tuo ordine sarà pronto per il ritiro:</p>
+    <p style="font-size:18px; font-weight:700; margin-top:6px;" id="conferma-data-ora"></p>
+    <button id="btn-nuovo-ordine" style="margin-top:30px;">Fai un altro ordine</button>
+  </div>
+</div>
+
+<div style="position:fixed; bottom:4px; right:6px; font-size:10px; color:#b2a878; z-index:1;">v2026-07-28-g (login/registrazione con password)</div>
+
+<!-- ============ MODAL ACCOUNT (Profilo + I miei ordini) ============ -->
+<div class="modal-backdrop" id="modal-account">
+  <div class="modal-sheet">
+    <h3 style="margin-bottom:16px;">Il tuo account</h3>
+
+    <div style="display:flex; gap:8px; margin-bottom:18px;">
+      <button type="button" class="tab-account active" data-vista="profilo" style="flex:1; padding:10px; font-size:13px;">👤 Utente</button>
+      <button type="button" class="tab-account secondary" data-vista="ordini" style="flex:1; padding:10px; font-size:13px;">🧾 Ordini</button>
+    </div>
+
+    <div id="vista-account-profilo">
+      <div id="account-profilo-dati"></div>
+      <button type="button" id="btn-logout-account" class="secondary" style="width:100%; margin-top:20px;">Esci dall'account</button>
+    </div>
+
+    <div id="vista-account-ordini" style="display:none;">
+      <div id="account-lista-ordini"></div>
+    </div>
+
+    <button type="button" class="secondary" style="width:100%; margin-top:16px;" onclick="closeModal('modal-account')">Chiudi</button>
+  </div>
+</div>
+
+<script>
+  // ================= CONFIGURAZIONE =================
+  const SUPABASE_URL = 'https://kdkjfdbvyxycrfbtifkb.supabase.co';
+  const SUPABASE_ANON_KEY = 'sb_publishable_9-LBerMBpUi0huyeNhgNuQ_Npo6VPYF';
+  const BUCKET = 'prodotti-immagini';
+
+  const sbClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true }
+  });
+
+  const params = new URLSearchParams(window.location.search);
+  const TENANT_ID = params.get('tenant');
+
+  let clienteCorrente = null;
+  let impostazioni = null;
+  let categorieList = [];
+  let prodottiList = [];
+  let variazioniPerProdotto = {}; // prodotto_id -> [{variazione, opzioni:[...]}]
+  let carrello = []; // {chiave, prodotto_id, nome, prezzoUnitario, quantita, opzioniScelte:[{nome, gruppo, prezzo}]}
+  let prodottoInDettaglio = null;
+  let selezioniCorrentiDettaglio = {}; // variazioneId -> [opzioneId,...]
+  let qtyCorrente = 1;
+
+  function showMsg(id, text, type) {
+    const el = document.getElementById(id);
+    el.textContent = text;
+    el.className = 'msg show ' + type;
+  }
+  function clearMsg(id) { document.getElementById(id).className = 'msg'; }
+  function openModal(id) {
+    document.getElementById(id).classList.add('show');
+    document.body.style.overflow = 'hidden';
+    if (id === 'modal-prodotto-dettaglio') {
+      const sheet = document.querySelector('#modal-prodotto-dettaglio .modal-sheet');
+      sheet.style.maxHeight = Math.round(window.innerHeight * 0.92) + 'px';
+    }
+  }
+  window.closeModal = function(id) {
+    document.getElementById(id).classList.remove('show');
+    if (!document.querySelector('.modal-backdrop.show')) {
+      document.body.style.overflow = '';
+    }
+  }
+  function escapeHtml(str) {
+    if (!str) return '';
+    return str.replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+  }
+  function formatEuro(n) { return '€' + Number(n).toFixed(2); }
+
+  function mostraSchermata(id) {
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+  }
+
+  // ================= AVVIO =================
+  (async () => {
+    if (!TENANT_ID) {
+      showMsg('login-cliente-msg', 'Link non valido: manca il locale di riferimento.', 'error');
+      return;
+    }
+    await caricaImpostazioniLocale();
+
+    // Gestisce il link di ripristino password (Supabase reindirizza qui con un token nell'URL)
+    sbClient.auth.onAuthStateChange((event, session) => {
+      if (event === 'PASSWORD_RECOVERY') {
+        mostraVista('vista-nuova-password');
+      }
+    });
+
+    // Se il dispositivo ricorda già una sessione valida, entra direttamente nel menu
+    const { data: { session } } = await sbClient.auth.getSession();
+    if (session) {
+      const ok = await caricaOImpostaProfiloCliente(session.user);
+      if (ok) await entraNelMenu();
+    }
+  })();
+
+  async function caricaImpostazioniLocale() {
+    const { data: tenant } = await sbClient.from('tenants').select('nome').eq('id', TENANT_ID).maybeSingle();
+    const { data: imp } = await sbClient.from('impostazioni_locale').select('*').eq('tenant_id', TENANT_ID).maybeSingle();
+    impostazioni = imp || {};
+    const nomeLocale = (imp && imp.nome_locale) || (tenant && tenant.nome) || 'Il locale';
+
+    document.getElementById('iscrizione-nome-locale').textContent = nomeLocale;
+    document.getElementById('menu-nome-locale').textContent = nomeLocale;
+
+    if (imp && imp.sfondo_url) {
+      document.getElementById('iscrizione-hero').style.backgroundImage = `url('${imp.sfondo_url}')`;
+    }
+    if (imp && imp.logo_url) {
+      const logo1 = document.getElementById('iscrizione-logo');
+      logo1.src = imp.logo_url; logo1.style.display = 'block';
+      const logo2 = document.getElementById('menu-logo');
+      logo2.src = imp.logo_url; logo2.style.display = 'block';
+    }
+
+    // Imposta l'altezza reale dell'header per posizionare correttamente le tab sotto di esso
+    requestAnimationFrame(() => {
+      const h = document.querySelector('header.menu-header').offsetHeight;
+      document.documentElement.style.setProperty('--header-h', h + 'px');
+    });
+  }
+
+  // ================= NAVIGAZIONE TRA LE VISTE DI ACCESSO =================
+  function mostraVista(id) {
+    ['vista-login', 'vista-registrazione', 'vista-recupera', 'vista-nuova-password'].forEach(v => {
+      document.getElementById(v).style.display = (v === id) ? 'block' : 'none';
+    });
+  }
+  document.getElementById('link-vai-registrazione').addEventListener('click', (e) => { e.preventDefault(); mostraVista('vista-registrazione'); });
+  document.getElementById('link-vai-login').addEventListener('click', (e) => { e.preventDefault(); mostraVista('vista-login'); });
+  document.getElementById('link-password-dimenticata').addEventListener('click', (e) => { e.preventDefault(); mostraVista('vista-recupera'); });
+  document.getElementById('link-torna-login').addEventListener('click', (e) => { e.preventDefault(); mostraVista('vista-login'); });
+
+  // ================= PROFILO CLIENTE (tabella clienti collegata a auth.users) =================
+  // Trova il profilo cliente per questo tenant; se non esiste (es. primo accesso dopo conferma email), lo crea usando i metadati salvati in fase di registrazione.
+  async function caricaOImpostaProfiloCliente(user) {
+    const { data: esistente, error: errSel } = await sbClient
+      .from('clienti').select('*')
+      .eq('tenant_id', TENANT_ID).eq('user_id', user.id)
+      .maybeSingle();
+
+    if (errSel) { showMsg('login-cliente-msg', 'Errore: ' + errSel.message, 'error'); return false; }
+
+    if (esistente) { clienteCorrente = esistente; return true; }
+
+    const meta = user.user_metadata || {};
+    const { data: nuovo, error: errIns } = await sbClient.from('clienti').insert({
+      tenant_id: TENANT_ID,
+      user_id: user.id,
+      nome: meta.nome || '',
+      cognome: meta.cognome || '',
+      telefono: meta.telefono || '',
+      indirizzo: meta.indirizzo || '',
+      email: user.email
+    }).select().single();
+
+    if (errIns) { showMsg('login-cliente-msg', 'Errore creazione profilo: ' + errIns.message, 'error'); return false; }
+    clienteCorrente = nuovo;
+    return true;
+  }
+
+  // ================= LOGIN =================
+  document.getElementById('form-login-cliente').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    clearMsg('login-cliente-msg');
+    const btn = document.getElementById('btn-login-cliente');
+    btn.disabled = true; btn.textContent = 'Accesso...';
+
+    try {
+      const email = document.getElementById('login-email').value.trim();
+      const password = document.getElementById('login-password').value;
+      const { data, error } = await sbClient.auth.signInWithPassword({ email, password });
+      if (error) throw error;
+
+      const ok = await caricaOImpostaProfiloCliente(data.user);
+      if (ok) await entraNelMenu();
+    } catch (err) {
+      showMsg('login-cliente-msg', 'Accesso fallito: credenziali non valide.', 'error');
+    } finally {
+      btn.disabled = false; btn.textContent = 'Accedi';
+    }
+  });
+
+  // ================= REGISTRAZIONE =================
+  document.getElementById('form-registrazione-cliente').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    clearMsg('registrazione-msg');
+    const btn = document.getElementById('btn-registrati');
+    btn.disabled = true; btn.textContent = 'Registrazione...';
+
+    try {
+      const nome = document.getElementById('reg-nome').value.trim();
+      const cognome = document.getElementById('reg-cognome').value.trim();
+      const indirizzo = document.getElementById('reg-indirizzo').value.trim();
+      const telefono = document.getElementById('reg-telefono').value.trim();
+      const email = document.getElementById('reg-email').value.trim();
+      const password = document.getElementById('reg-password').value;
+
+      const redirectTo = window.location.origin + window.location.pathname + '?tenant=' + TENANT_ID;
+      const { data, error } = await sbClient.auth.signUp({
+        email, password,
+        options: { data: { nome, cognome, telefono, indirizzo }, emailRedirectTo: redirectTo }
+      });
+      if (error) throw error;
+
+      if (data.session) {
+        // Conferma email disattivata: sessione già attiva, entriamo subito
+        const ok = await caricaOImpostaProfiloCliente(data.user);
+        if (ok) await entraNelMenu();
+      } else {
+        showMsg('registrazione-msg', 'Registrazione completata! Controlla la tua email per confermare l\'account, poi accedi.', 'ok');
+        setTimeout(() => mostraVista('vista-login'), 2500);
+      }
+    } catch (err) {
+      showMsg('registrazione-msg', 'Errore: ' + err.message, 'error');
+    } finally {
+      btn.disabled = false; btn.textContent = 'Registrati';
+    }
+  });
+
+  // ================= RECUPERO PASSWORD =================
+  document.getElementById('form-recupera-password').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    clearMsg('recupera-msg');
+    const btn = document.getElementById('btn-recupera-password');
+    btn.disabled = true; btn.textContent = 'Invio...';
+
+    try {
+      const email = document.getElementById('recupera-email').value.trim();
+      const redirectTo = window.location.origin + window.location.pathname + '?tenant=' + TENANT_ID;
+      const { error } = await sbClient.auth.resetPasswordForEmail(email, { redirectTo });
+      if (error) throw error;
+      showMsg('recupera-msg', 'Ti abbiamo inviato un\'email con il link per reimpostare la password.', 'ok');
+    } catch (err) {
+      showMsg('recupera-msg', 'Errore: ' + err.message, 'error');
+    } finally {
+      btn.disabled = false; btn.textContent = 'Invia link di ripristino';
+    }
+  });
+
+  // ================= NUOVA PASSWORD (dopo click sul link email) =================
+  document.getElementById('form-nuova-password').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    clearMsg('nuova-password-msg');
+    const btn = document.getElementById('btn-nuova-password');
+    btn.disabled = true; btn.textContent = 'Salvataggio...';
+
+    try {
+      const nuovaPassword = document.getElementById('nuova-password-campo').value;
+      const { data, error } = await sbClient.auth.updateUser({ password: nuovaPassword });
+      if (error) throw error;
+      const ok = await caricaOImpostaProfiloCliente(data.user);
+      if (ok) await entraNelMenu();
+    } catch (err) {
+      showMsg('nuova-password-msg', 'Errore: ' + err.message, 'error');
+    } finally {
+      btn.disabled = false; btn.textContent = 'Salva nuova password';
+    }
+  });
+
+  // ================= ACCOUNT (Utente + I miei ordini) =================
+  document.getElementById('btn-account').addEventListener('click', () => {
+    renderProfiloAccount();
+    mostraVistaAccount('profilo');
+    openModal('modal-account');
+  });
+
+  document.querySelectorAll('.tab-account').forEach(btn => {
+    btn.addEventListener('click', () => {
+      mostraVistaAccount(btn.dataset.vista);
+    });
+  });
+
+  function mostraVistaAccount(vista) {
+    document.querySelectorAll('.tab-account').forEach(b => {
+      b.classList.toggle('active', b.dataset.vista === vista);
+      b.classList.toggle('secondary', b.dataset.vista !== vista);
+    });
+    document.getElementById('vista-account-profilo').style.display = vista === 'profilo' ? 'block' : 'none';
+    document.getElementById('vista-account-ordini').style.display = vista === 'ordini' ? 'block' : 'none';
+    if (vista === 'ordini') caricaOrdiniAccount();
+  }
+
+  function renderProfiloAccount() {
+    const c = clienteCorrente || {};
+    document.getElementById('account-profilo-dati').innerHTML = `
+      <div class="var-gruppo" style="margin-bottom:0;">
+        <div style="margin-bottom:10px;"><strong>${escapeHtml((c.nome || '') + ' ' + (c.cognome || ''))}</strong></div>
+        <div style="font-size:14px; color:var(--ink-dim); margin-top:8px;">📞 ${escapeHtml(c.telefono || '—')}</div>
+        <div style="font-size:14px; color:var(--ink-dim); margin-top:8px;">✉️ ${escapeHtml(c.email || '—')}</div>
+        <div style="font-size:14px; color:var(--ink-dim); margin-top:8px;">📍 ${escapeHtml(c.indirizzo || '—')}</div>
+      </div>
+    `;
+  }
+
+  async function caricaOrdiniAccount() {
+    const cont = document.getElementById('account-lista-ordini');
+    cont.innerHTML = '<div class="empty-state">Caricamento...</div>';
+
+    const { data, error } = await sbClient
+      .from('ordini')
+      .select('*, ordini_righe(*)')
+      .eq('cliente_id', clienteCorrente.id)
+      .order('data_ritiro', { ascending: false })
+      .order('ora_ritiro', { ascending: false });
+
+    if (error) { cont.innerHTML = '<div class="empty-state">Errore nel caricamento degli ordini.</div>'; return; }
+    if (!data || !data.length) { cont.innerHTML = '<div class="empty-state">Nessun ordine ancora effettuato.</div>'; return; }
+
+    cont.innerHTML = data.map(o => {
+      const dataFormattata = new Date(o.data_ritiro + 'T' + o.ora_ritiro).toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric' });
+      const righe = (o.ordini_righe || []).map(r => `
+        <div style="font-size:13px; color:var(--ink-dim); margin-top:4px;">
+          ${r.quantita}× ${escapeHtml(r.prodotto_nome)}
+        </div>
+      `).join('');
+      return `
+        <div class="var-gruppo">
+          <div class="var-gruppo-titolo">
+            <span>${dataFormattata} — ${o.ora_ritiro.slice(0,5)}</span>
+            <span class="hint">${formatEuro(o.totale)}</span>
+          </div>
+          ${righe}
+          <div style="margin-top:8px;"><span class="badge">${escapeHtml(o.stato)}</span></div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  document.getElementById('btn-logout-account').addEventListener('click', async () => {
+    if (!confirm('Vuoi davvero uscire dal tuo account?')) return;
+    await sbClient.auth.signOut();
+    closeModal('modal-account');
+    clienteCorrente = null;
+    mostraSchermata('schermata-iscrizione');
+    mostraVista('vista-login');
+  });
+
+  // ================= MENU =================
+  async function entraNelMenu() {
+    await caricaMenu();
+    mostraSchermata('schermata-menu');
+  }
+
+  async function caricaMenu() {
+    const { data: categorie } = await sbClient
+      .from('categorie').select('*')
+      .eq('tenant_id', TENANT_ID).eq('attivo', true)
+      .order('ordine_visualizzazione');
+    categorieList = categorie || [];
+
+    const { data: prodotti } = await sbClient
+      .from('prodotti').select('*, prodotti_opzioni_variazione(opzione_variazione_id, opzioni_variazione(id, nome, prezzo_aggiuntivo, variazione_id, variazioni(id, nome_gruppo, obbligatorio, max_scelte)))')
+      .eq('tenant_id', TENANT_ID).eq('attivo', true)
+      .order('ordine_visualizzazione');
+    prodottiList = prodotti || [];
+
+    // Organizza variazioni per prodotto, raggruppate per gruppo variazione
+    variazioniPerProdotto = {};
+    prodottiList.forEach(p => {
+      const gruppiMap = {};
+      (p.prodotti_opzioni_variazione || []).forEach(pv => {
+        const opz = pv.opzioni_variazione;
+        if (!opz || !opz.variazioni) return;
+        const g = opz.variazioni;
+        if (!gruppiMap[g.id]) gruppiMap[g.id] = { gruppo: g, opzioni: [] };
+        gruppiMap[g.id].opzioni.push({ id: opz.id, nome: opz.nome, prezzo_aggiuntivo: opz.prezzo_aggiuntivo });
+      });
+      variazioniPerProdotto[p.id] = Object.values(gruppiMap);
+    });
+
+    renderTabsCategorie();
+    renderMenu();
+  }
+
+  function renderTabsCategorie() {
+    const nav = document.getElementById('categorie-tabs');
+    nav.innerHTML = categorieList.map((c, i) => `
+      <button class="tab-categoria ${i === 0 ? 'active' : ''}" data-cat="${c.id}">${escapeHtml(c.nome)}</button>
+    `).join('');
+    nav.querySelectorAll('.tab-categoria').forEach(btn => {
+      btn.addEventListener('click', () => {
+        nav.querySelectorAll('.tab-categoria').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        const el = document.getElementById('cat-' + btn.dataset.cat);
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
+    });
+  }
+
+  function renderMenu() {
+    const main = document.getElementById('menu-main');
+    if (!categorieList.length) {
+      main.innerHTML = '<div class="empty-state">Il menu non è ancora disponibile.</div>';
+      return;
+    }
+    main.innerHTML = categorieList.map(cat => {
+      const prodottiCat = prodottiList.filter(p => p.categoria_id === cat.id);
+      if (!prodottiCat.length) return '';
+      return `
+        <div class="categoria-blocco" id="cat-${cat.id}">
+          <div class="categoria-titolo">${escapeHtml(cat.nome)}</div>
+          ${cat.descrizione ? `<div class="categoria-desc">${escapeHtml(cat.descrizione)}</div>` : ''}
+          ${prodottiCat.map(p => `
+            <div class="prodotto-card">
+              ${p.immagine_url ? `<img src="${p.immagine_url}" alt="">` : ''}
+              <div class="prodotto-info">
+                <div class="prodotto-nome">${escapeHtml(p.nome)}</div>
+                ${p.descrizione ? `<div class="prodotto-desc">${escapeHtml(p.descrizione)}</div>` : ''}
+                <div class="prodotto-prezzo">${formatEuro(p.prezzo_base)}</div>
+              </div>
+              <button class="btn-aggiungi" onclick="apriDettaglioProdotto('${p.id}')">+ Aggiungi</button>
+            </div>
+          `).join('')}
+        </div>
+      `;
+    }).join('') + renderFooterLocale();
+  }
+
+  function renderFooterLocale() {
+    if (!impostazioni) return '';
+    const nome = impostazioni.nome_locale || document.getElementById('menu-nome-locale').textContent;
+    const via = impostazioni.indirizzo || '';
+    const capCitta = [impostazioni.cap, impostazioni.citta].filter(Boolean).join(' ');
+    const indirizzoCompleto = [via, capCitta].filter(Boolean).join(' — ');
+    const righe = [];
+    if (indirizzoCompleto) righe.push(`<div class="footer-riga">📍 ${escapeHtml(indirizzoCompleto)}</div>`);
+    if (impostazioni.telefono) righe.push(`<div class="footer-riga">📞 ${escapeHtml(impostazioni.telefono)}</div>`);
+    if (impostazioni.sito_web) righe.push(`<div class="footer-riga">🌐 ${escapeHtml(impostazioni.sito_web)}</div>`);
+    if (!righe.length) return '';
+    return `
+      <div class="footer-locale">
+        <div class="footer-nome">${escapeHtml(nome)}</div>
+        ${righe.join('')}
+      </div>
+    `;
+  }
+
+  // ================= DETTAGLIO PRODOTTO / VARIAZIONI =================
+  window.apriDettaglioProdotto = function(prodottoId) {
+    prodottoInDettaglio = prodottiList.find(p => p.id === prodottoId);
+    if (!prodottoInDettaglio) return;
+
+    selezioniCorrentiDettaglio = {};
+    qtyCorrente = 1;
+    document.getElementById('dettaglio-qty').textContent = '1';
+    document.getElementById('dettaglio-nome').textContent = prodottoInDettaglio.nome;
+    document.getElementById('dettaglio-descrizione').textContent = prodottoInDettaglio.descrizione || '';
+    const imgDettaglio = document.getElementById('dettaglio-immagine');
+    if (prodottoInDettaglio.immagine_url) {
+      imgDettaglio.src = prodottoInDettaglio.immagine_url;
+      imgDettaglio.style.display = 'block';
+    } else {
+      imgDettaglio.style.display = 'none';
+    }
+    clearMsg('dettaglio-msg');
+
+    const gruppi = variazioniPerProdotto[prodottoId] || [];
+    const cont = document.getElementById('dettaglio-variazioni');
+    if (!gruppi.length) {
+      cont.innerHTML = '';
+    } else {
+      cont.innerHTML = gruppi.map(g => {
+        const isRadio = g.gruppo.max_scelte === 1;
+        return `
+          <div class="var-gruppo">
+            <div class="var-gruppo-titolo">
+              <span>${escapeHtml(g.gruppo.nome_gruppo)} ${g.gruppo.obbligatorio ? '<span class="badge">Obbligatorio</span>' : ''}</span>
+              <span class="hint">${isRadio ? 'scegli 1' : 'scegli fino a ' + g.gruppo.max_scelte}</span>
+            </div>
+            ${g.opzioni.map(o => `
+              <div class="var-opzione-riga">
+                <label>
+                  <input type="${isRadio ? 'radio' : 'checkbox'}" name="gruppo-${g.gruppo.id}" class="chk-var-cliente" data-gruppo="${g.gruppo.id}" value="${o.id}">
+                  ${escapeHtml(o.nome)}
+                </label>
+                ${o.prezzo_aggiuntivo > 0 ? `<span class="var-opzione-extra">+${formatEuro(o.prezzo_aggiuntivo)}</span>` : ''}
+              </div>
+            `).join('')}
+          </div>
+        `;
+      }).join('');
+
+      cont.querySelectorAll('.chk-var-cliente').forEach(el => {
+        el.addEventListener('change', aggiornaPrezzoDettaglio);
+      });
+    }
+
+    aggiornaPrezzoDettaglio();
+    openModal('modal-prodotto-dettaglio');
+  };
+
+  document.getElementById('btn-qty-meno').addEventListener('click', () => {
+    if (qtyCorrente > 1) { qtyCorrente--; document.getElementById('dettaglio-qty').textContent = qtyCorrente; aggiornaPrezzoDettaglio(); }
+  });
+  document.getElementById('btn-qty-piu').addEventListener('click', () => {
+    qtyCorrente++; document.getElementById('dettaglio-qty').textContent = qtyCorrente; aggiornaPrezzoDettaglio();
+  });
+
+  function calcolaSelezioniETotale() {
+    const gruppi = variazioniPerProdotto[prodottoInDettaglio.id] || [];
+    let extra = 0;
+    const opzioniScelte = [];
+    document.querySelectorAll('.chk-var-cliente:checked').forEach(el => {
+      const gruppoId = el.dataset.gruppo;
+      const g = gruppi.find(x => x.gruppo.id === gruppoId);
+      const o = g ? g.opzioni.find(x => x.id === el.value) : null;
+      if (o) {
+        extra += Number(o.prezzo_aggiuntivo) || 0;
+        opzioniScelte.push({ gruppo: g.gruppo.nome_gruppo, nome: o.nome, prezzo: Number(o.prezzo_aggiuntivo) || 0 });
+      }
+    });
+    return { extra, opzioniScelte };
+  }
+
+  function aggiornaPrezzoDettaglio() {
+    const { extra } = calcolaSelezioniETotale();
+    const prezzoUnitario = Number(prodottoInDettaglio.prezzo_base) + extra;
+    const totale = prezzoUnitario * qtyCorrente;
+    document.getElementById('btn-conferma-aggiungi').textContent = `Aggiungi al carrello — ${formatEuro(totale)}`;
+  }
+
+  document.getElementById('btn-conferma-aggiungi').addEventListener('click', () => {
+    clearMsg('dettaglio-msg');
+    const gruppi = variazioniPerProdotto[prodottoInDettaglio.id] || [];
+
+    // Validazione gruppi obbligatori
+    for (const g of gruppi) {
+      if (g.gruppo.obbligatorio) {
+        const almenoUno = Array.from(document.querySelectorAll(`.chk-var-cliente[data-gruppo="${g.gruppo.id}"]:checked`)).length > 0;
+        if (!almenoUno) {
+          showMsg('dettaglio-msg', `Devi scegliere un'opzione per "${g.gruppo.nome_gruppo}".`, 'error');
+          return;
+        }
+      }
+    }
+
+    const { extra, opzioniScelte } = calcolaSelezioniETotale();
+    const prezzoUnitario = Number(prodottoInDettaglio.prezzo_base) + extra;
+
+    carrello.push({
+      chiave: Date.now() + '-' + Math.random(),
+      prodotto_id: prodottoInDettaglio.id,
+      nome: prodottoInDettaglio.nome,
+      prezzoUnitario,
+      quantita: qtyCorrente,
+      opzioniScelte
+    });
+
+    aggiornaFabCarrello();
+    closeModal('modal-prodotto-dettaglio');
+  });
+
+  // ================= CARRELLO =================
+  function totaleCarrello() {
+    return carrello.reduce((sum, r) => sum + r.prezzoUnitario * r.quantita, 0);
+  }
+
+  function aggiornaFabCarrello() {
+    const fab = document.getElementById('carrello-fab');
+    const count = carrello.reduce((s, r) => s + r.quantita, 0);
+    if (count > 0) {
+      fab.classList.add('show');
+      document.getElementById('carrello-badge').textContent = count;
+      document.getElementById('carrello-fab-totale').textContent = 'Vedi carrello — ' + formatEuro(totaleCarrello());
+    } else {
+      fab.classList.remove('show');
+    }
+  }
+
+  document.getElementById('carrello-fab').addEventListener('click', () => {
+    renderCarrello();
+    generaFasceOrarie();
+    openModal('modal-carrello');
+  });
+
+  function renderCarrello() {
+    const cont = document.getElementById('carrello-righe');
+    if (!carrello.length) {
+      cont.innerHTML = '<div class="empty-state">Il carrello è vuoto.</div>';
+    } else {
+      cont.innerHTML = carrello.map(r => `
+        <div class="carrello-riga">
+          <div class="carrello-riga-info">
+            <div class="carrello-riga-nome">${escapeHtml(r.nome)}</div>
+            ${r.opzioniScelte.length ? `<div class="carrello-riga-tags">${r.opzioniScelte.map(o => escapeHtml(o.gruppo + ' ' + o.nome)).join(' · ')}</div>` : ''}
+            <div class="carrello-riga-azioni">
+              <button type="button" class="qty-mini-btn" onclick="cambiaQtyCarrello('${r.chiave}', -1)">−</button>
+              <span class="qty-mini-val">${r.quantita}</span>
+              <button type="button" class="qty-mini-btn" onclick="cambiaQtyCarrello('${r.chiave}', 1)">+</button>
+            </div>
+          </div>
+          <div class="carrello-riga-prezzo">${formatEuro(r.prezzoUnitario * r.quantita)}</div>
+        </div>
+      `).join('');
+    }
+    document.getElementById('carrello-totale').textContent = formatEuro(totaleCarrello());
+  }
+
+  window.rimuoviDalCarrello = function(chiave) {
+    carrello = carrello.filter(r => r.chiave !== chiave);
+    renderCarrello();
+    aggiornaFabCarrello();
+    if (!carrello.length) closeModal('modal-carrello');
+  };
+
+  window.cambiaQtyCarrello = function(chiave, delta) {
+    const riga = carrello.find(r => r.chiave === chiave);
+    if (!riga) return;
+    riga.quantita += delta;
+    if (riga.quantita <= 0) {
+      carrello = carrello.filter(r => r.chiave !== chiave);
+    }
+    renderCarrello();
+    aggiornaFabCarrello();
+    if (!carrello.length) closeModal('modal-carrello');
+  };
+
+  // ================= FASCE ORARIE =================
+  const oggi = new Date();
+  document.getElementById('campo-data-ritiro').min = oggi.toISOString().split('T')[0];
+  document.getElementById('campo-data-ritiro').value = oggi.toISOString().split('T')[0];
+  document.getElementById('campo-data-ritiro').addEventListener('change', generaFasceOrarie);
+
+  function generaFasceOrarie() {
+    const sel = document.getElementById('campo-ora-ritiro');
+    const dataScelta = document.getElementById('campo-data-ritiro').value;
+    if (!dataScelta) { sel.innerHTML = '<option value="">Seleziona prima il giorno</option>'; return; }
+
+    // Controlla se il locale è aperto nel giorno della settimana selezionato
+    const chiaviGiorno = ['dom', 'lun', 'mar', 'mer', 'gio', 'ven', 'sab'];
+    const dataObj = new Date(dataScelta + 'T00:00:00');
+    const chiaveGiorno = chiaviGiorno[dataObj.getDay()];
+    const giorniApertura = (impostazioni && impostazioni.giorni_apertura) ? impostazioni.giorni_apertura : {};
+    const giornoAperto = giorniApertura[chiaveGiorno] !== false;
+
+    if (!giornoAperto) {
+      sel.innerHTML = '<option value="">Il locale è chiuso in questo giorno</option>';
+      return;
+    }
+
+    const apertura = (impostazioni && impostazioni.orario_apertura) ? impostazioni.orario_apertura.slice(0,5) : '09:00';
+    const chiusura = (impostazioni && impostazioni.orario_chiusura) ? impostazioni.orario_chiusura.slice(0,5) : '20:00';
+    const intervallo = (impostazioni && impostazioni.intervallo_slot_minuti) ? impostazioni.intervallo_slot_minuti : 30;
+
+    const [hA, mA] = apertura.split(':').map(Number);
+    const [hC, mC] = chiusura.split(':').map(Number);
+    let minuti = hA * 60 + mA;
+    const minutiChiusura = hC * 60 + mC;
+
+    const isOggi = dataScelta === oggi.toISOString().split('T')[0];
+    const minutiOra = oggi.getHours() * 60 + oggi.getMinutes();
+
+    const slots = [];
+    while (minuti <= minutiChiusura) {
+      if (!isOggi || minuti > minutiOra + 15) {
+        const h = String(Math.floor(minuti / 60)).padStart(2, '0');
+        const m = String(minuti % 60).padStart(2, '0');
+        slots.push(`${h}:${m}`);
+      }
+      minuti += intervallo;
+    }
+
+    if (!slots.length) {
+      sel.innerHTML = '<option value="">Nessuna fascia disponibile per oggi</option>';
+    } else {
+      sel.innerHTML = slots.map(s => `<option value="${s}">${s}</option>`).join('');
+    }
+  }
+
+  // ================= CONFERMA ORDINE =================
+  document.getElementById('btn-conferma-ordine').addEventListener('click', async () => {
+    clearMsg('carrello-msg');
+    if (!carrello.length) { showMsg('carrello-msg', 'Il carrello è vuoto.', 'error'); return; }
+
+    const dataRitiro = document.getElementById('campo-data-ritiro').value;
+    const oraRitiro = document.getElementById('campo-ora-ritiro').value;
+    if (!dataRitiro || !oraRitiro) { showMsg('carrello-msg', 'Seleziona giorno e fascia oraria per il ritiro.', 'error'); return; }
+
+    const btn = document.getElementById('btn-conferma-ordine');
+    btn.disabled = true; btn.textContent = 'Invio ordine...';
+
+    try {
+      const totale = totaleCarrello();
+      const { data: ordine, error: errOrdine } = await sbClient.from('ordini').insert({
+        tenant_id: TENANT_ID,
+        cliente_id: clienteCorrente.id,
+        stato: 'nuovo',
+        totale,
+        note: document.getElementById('campo-note').value.trim(),
+        data_ritiro: dataRitiro,
+        ora_ritiro: oraRitiro
+      }).select().single();
+      if (errOrdine) throw errOrdine;
+
+      const righe = carrello.map(r => ({
+        ordine_id: ordine.id,
+        prodotto_id: r.prodotto_id,
+        prodotto_nome: r.nome,
+        quantita: r.quantita,
+        opzioni_scelte: r.opzioniScelte,
+        prezzo_unitario: r.prezzoUnitario,
+        prezzo_riga: r.prezzoUnitario * r.quantita
+      }));
+      const { error: errRighe } = await sbClient.from('ordini_righe').insert(righe);
+      if (errRighe) throw errRighe;
+
+      document.getElementById('conferma-data-ora').textContent =
+        new Date(dataRitiro + 'T' + oraRitiro).toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long' }) + ' alle ' + oraRitiro;
+
+      carrello = [];
+      aggiornaFabCarrello();
+      closeModal('modal-carrello');
+      mostraSchermata('schermata-conferma');
+    } catch (err) {
+      showMsg('carrello-msg', 'Errore: ' + err.message, 'error');
+    } finally {
+      btn.disabled = false; btn.textContent = 'Conferma ordine';
+    }
+  });
+
+  document.getElementById('btn-nuovo-ordine').addEventListener('click', () => {
+    mostraSchermata('schermata-menu');
+  });
+</script>
+
+</body>
+</html>
