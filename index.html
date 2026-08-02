@@ -460,10 +460,12 @@
           <label for="imp-logo">Immagine in alto (logo/header)</label>
           <input type="file" id="imp-logo" accept="image/*">
           <img id="imp-logo-preview" class="img-preview" style="height:80px; object-fit:contain; background:#000;">
+          <button type="button" class="danger" style="width:100%; margin-top:6px; padding:6px; font-size:12px;" onclick="eliminaImmagineDelCampo('imp-logo-preview','imp-logo', async () => { await sbClient.from('impostazioni_locale').update({ logo_url: null }).eq('tenant_id', currentTenantId); await caricaImpostazioni(); })">🗑 Rimuovi logo</button>
 
           <label for="imp-sfondo">Immagine di sfondo</label>
           <input type="file" id="imp-sfondo" accept="image/*">
           <img id="imp-sfondo-preview" class="img-preview">
+          <button type="button" class="danger" style="width:100%; margin-top:6px; padding:6px; font-size:12px;" onclick="eliminaImmagineDelCampo('imp-sfondo-preview','imp-sfondo', async () => { await sbClient.from('impostazioni_locale').update({ sfondo_url: null }).eq('tenant_id', currentTenantId); await caricaImpostazioni(); })">🗑 Rimuovi sfondo</button>
 
           <div class="row-2" style="margin-top:16px;">
             <div>
@@ -539,6 +541,7 @@
       <label for="categoria-immagine">Immagine categoria</label>
       <input type="file" id="categoria-immagine" accept="image/*">
       <img id="categoria-immagine-preview" class="img-preview">
+      <button type="button" class="danger" style="width:100%; margin-top:6px; padding:6px; font-size:12px;" onclick="eliminaImmagineDelCampo('categoria-immagine-preview','categoria-immagine', async () => { const id = document.getElementById('categoria-id').value; if (id) { await sbClient.from('categorie').update({ immagine_url: null }).eq('id', id); await caricaCategorie(); } })">🗑 Rimuovi immagine</button>
 
       <label for="categoria-ordine">Ordine di visualizzazione</label>
       <input type="number" id="categoria-ordine" value="0">
@@ -590,6 +593,7 @@
       <label for="prodotto-immagine">Immagine prodotto</label>
       <input type="file" id="prodotto-immagine" accept="image/*">
       <img id="prodotto-immagine-preview" class="img-preview">
+      <button type="button" class="danger" style="width:100%; margin-top:6px; padding:6px; font-size:12px;" onclick="eliminaImmagineDelCampo('prodotto-immagine-preview','prodotto-immagine', async () => { const id = document.getElementById('prodotto-id').value; if (id) { await sbClient.from('prodotti').update({ immagine_url: null }).eq('id', id); await caricaProdotti(); } })">🗑 Rimuovi immagine</button>
 
       <label style="display:flex; align-items:center; gap:8px; margin-top:16px;">
         <input type="checkbox" id="prodotto-attivo" checked style="width:auto;"> Prodotto attivo
@@ -1435,6 +1439,40 @@
       btn.textContent = 'Salva formattazione';
     }
   });
+
+  // ================= ELIMINAZIONE RAPIDA IMMAGINE (dal campo dove viene usata) =================
+  function estraiPercorsoStorage(url) {
+    const marcatore = `/storage/v1/object/public/${BUCKET}/`;
+    const idx = url.indexOf(marcatore);
+    if (idx === -1) return null;
+    return decodeURIComponent(url.substring(idx + marcatore.length));
+  }
+
+  window.eliminaImmagineDelCampo = async function(previewId, fileInputId, aggiornaDbFn) {
+    const preview = document.getElementById(previewId);
+    const fileInput = document.getElementById(fileInputId);
+    if (!preview.classList.contains('show')) return;
+
+    if (preview.src.startsWith('blob:')) {
+      // Immagine scelta ma non ancora caricata: basta pulire la selezione locale
+      fileInput.value = '';
+      preview.src = '';
+      preview.classList.remove('show');
+      return;
+    }
+
+    if (!confirm('Eliminare questa immagine? Verrà rimossa subito, anche se non hai ancora premuto "Salva".')) return;
+
+    const percorso = estraiPercorsoStorage(preview.src);
+    if (percorso) {
+      const { error } = await sbClient.storage.from(BUCKET).remove([percorso]);
+      if (error) { alert('Errore eliminazione: ' + error.message); return; }
+    }
+    fileInput.value = '';
+    preview.src = '';
+    preview.classList.remove('show');
+    await aggiornaDbFn();
+  };
 
   // ================= IMMAGINI CARICATE =================
   async function caricaImmagini() {
