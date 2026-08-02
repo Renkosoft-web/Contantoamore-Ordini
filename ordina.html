@@ -924,6 +924,8 @@
     renderMenu();
   }
 
+  let bloccoScrollSpy = false;
+
   function renderTabsCategorie() {
     const nav = document.getElementById('categorie-tabs');
     nav.innerHTML = categorieList.map((c, i) => `
@@ -933,11 +935,46 @@
       btn.addEventListener('click', () => {
         nav.querySelectorAll('.tab-categoria').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
+        bloccoScrollSpy = true;
         const el = document.getElementById('cat-' + btn.dataset.cat);
         if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        setTimeout(() => { bloccoScrollSpy = false; }, 700);
       });
     });
   }
+
+  function aggiornaCategoriaAttivaSuScroll() {
+    if (bloccoScrollSpy) return;
+    if (!document.getElementById('schermata-menu').classList.contains('active')) return;
+
+    const nav = document.getElementById('categorie-tabs');
+    const sogliaAlto = nav.getBoundingClientRect().bottom + 4;
+
+    let categoriaCorrenteId = null;
+    document.querySelectorAll('.categoria-blocco').forEach(blocco => {
+      if (blocco.getBoundingClientRect().top <= sogliaAlto) {
+        categoriaCorrenteId = blocco.id.replace('cat-', '');
+      }
+    });
+    if (!categoriaCorrenteId) return;
+
+    const tabGiaAttiva = nav.querySelector('.tab-categoria.active');
+    if (tabGiaAttiva && tabGiaAttiva.dataset.cat === categoriaCorrenteId) return;
+
+    nav.querySelectorAll('.tab-categoria').forEach(b => b.classList.toggle('active', b.dataset.cat === categoriaCorrenteId));
+    const tabAttiva = nav.querySelector(`.tab-categoria[data-cat="${categoriaCorrenteId}"]`);
+    if (tabAttiva) tabAttiva.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' });
+  }
+
+  let scrollSpyTicking = false;
+  window.addEventListener('scroll', () => {
+    if (scrollSpyTicking) return;
+    scrollSpyTicking = true;
+    requestAnimationFrame(() => {
+      aggiornaCategoriaAttivaSuScroll();
+      scrollSpyTicking = false;
+    });
+  });
 
   function renderMenu() {
     const main = document.getElementById('menu-main');
