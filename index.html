@@ -371,6 +371,7 @@
           <option value="">Tutte le categorie</option>
         </select>
       </div>
+      <p id="suggerimento-trascina-prodotti" style="display:none; font-size:12px; color:var(--ink-dim); margin-top:-10px; margin-bottom:14px;">💡 Trascina i prodotti (⠿) per cambiarne l'ordine in questa categoria.</p>
       <div id="lista-prodotti"></div>
     </section>
     <!-- ---- ORDINI ---- -->
@@ -875,12 +876,13 @@
       return;
     }
     cont.innerHTML = categorieCache.map(cat => `
-      <div class="list-item">
+      <div class="list-item" draggable="true" data-id="${cat.id}" style="cursor:grab;">
         <div class="item-main">
+          <span style="color:var(--ink-dim); font-size:18px; margin-right:2px; user-select:none;">⠿</span>
           ${cat.immagine_url ? `<img src="${cat.immagine_url}" alt="">` : ''}
           <div class="item-info">
             <div class="name">${escapeHtml(cat.nome)}</div>
-            <div class="meta">${cat.descrizione ? escapeHtml(cat.descrizione) + ' · ' : ''}Ordine: ${cat.ordine_visualizzazione} · <span class="badge ${cat.attivo ? '' : 'off'}">${cat.attivo ? 'Attiva' : 'Disattiva'}</span></div>
+            <div class="meta">${cat.descrizione ? escapeHtml(cat.descrizione) + ' · ' : ''}<span class="badge ${cat.attivo ? '' : 'off'}">${cat.attivo ? 'Attiva' : 'Disattiva'}</span></div>
           </div>
         </div>
         <div class="item-actions">
@@ -1022,11 +1024,20 @@
         : '<div class="empty-state">Nessun prodotto ancora. Creane uno per iniziare.</div>';
       return;
     }
+    if (!filtroId) {
+      const suggerimento = document.getElementById('suggerimento-trascina-prodotti');
+      if (suggerimento) suggerimento.style.display = 'none';
+    } else {
+      const suggerimento = document.getElementById('suggerimento-trascina-prodotti');
+      if (suggerimento) suggerimento.style.display = 'block';
+    }
+
     cont.innerHTML = prodottiFiltrati.map(p => {
       const nVar = (p.prodotti_opzioni_variazione || []).length;
       return `
-      <div class="list-item">
+      <div class="list-item" ${filtroId ? `draggable="true" data-id="${p.id}" style="cursor:grab;"` : ''}>
         <div class="item-main">
+          ${filtroId ? '<span style="color:var(--ink-dim); font-size:18px; margin-right:2px; user-select:none;">⠿</span>' : ''}
           ${p.immagine_url ? `<img src="${p.immagine_url}" alt="">` : ''}
           <div class="item-info">
             <div class="name">${escapeHtml(p.nome)} — €${Number(p.prezzo_base).toFixed(2)}</div>
@@ -2010,6 +2021,109 @@
     document.getElementById('dettaglio-ordine-note').textContent = o.note ? ('Note: ' + o.note) : '';
     openModal('modal-dettaglio-ordine');
   };
+
+  // ================= TRASCINAMENTO PER RIORDINARE =================
+  function abilitaTrascinamento(contenitoreId, ottieniArray, dopoRiordino, condizioneAttiva) {
+    const cont = document.getElementById(contenitoreId);
+
+    cont.addEventListener('dragstart', (e) => {
+      const item = e.target.closest('.list-item');
+      if (!item || (condizioneAttiva && !condizioneAttiva())) return;
+      e.dataTransfer.setData('text/plain', item.dataset.id);
+      item.style.opacity = '0.5';
+    });
+
+    cont.addEventListener('dragend', (e) => {
+      const item = e.target.closest('.list-item');
+      if (item) item.style.opacity = '';
+    });
+
+    cont.addEventListener('dragover', (e) => {
+      if (condizioneAttiva && !condizioneAttiva()) return;
+      e.preventDefault();
+    });
+
+    cont.addEventListener('drop', async (e) => {
+      if (condizioneAttiva && !condizioneAttiva()) return;
+      e.preventDefault();
+      const targetItem = e.target.closest('.list-item');
+      if (!targetItem) return;
+      const sourceId = e.dataTransfer.getData('text/plain');
+      const targetId = targetItem.dataset.id;
+      if (!sourceId || sourceId === targetId) return;
+
+      const array = ottieniArray();
+      const fromIdx = array.findIndex(x => x.id === sourceId);
+      const toIdx = array.findIndex(x => x.id === targetId);
+      if (fromIdx === -1 || toIdx === -1) return;
+
+      const [spostato] = array.splice(fromIdx, 1);
+      array.splice(toIdx, 0, spostato);
+
+      dopoRiordino();
+
+      // Salva il nuovo ordine sul database (solo gli elementi effettivamente riordinati)
+      await Promise.all(array.map((el, i) =>
+        sbClient.from(el.__tabella).update({ ordine_visualizzazione: i }).eq('id', el.id)
+      ));
+    });
+  }
+
+  abilitaTrascinamento('lista-categorie', () => {
+    categorieCache.forEach(c => c.__tabella = 'categorie');
+    return categorieCache;
+  }, renderCategorie);
+
+  // I prodotti si trascinano solo dentro la stessa categoria filtrata: lo spostamento
+  // avviene sull'array reale (prodottiCache), così l'ordine resta corretto anche
+  // dopo aver tolto il filtro. Il salvataggio riguarda solo i prodotti della categoria
+  // effettivamente riordinata, non tutti quelli in elenco.
+  (function abilitaTrascinamentoProdotti() {
+    const cont = document.getElementById('lista-prodotti');
+    const filtroAttivo = () => document.getElementById('filtro-categoria-prodotti').value;
+
+    cont.addEventListener('dragstart', (e) => {
+      const item = e.target.closest('.list-item');
+      if (!item || !filtroAttivo()) return;
+      e.dataTransfer.setData('text/plain', item.dataset.id);
+      item.style.opacity = '0.5';
+    });
+
+    cont.addEventListener('dragend', (e) => {
+      const item = e.target.closest('.list-item');
+      if (item) item.style.opacity = '';
+    });
+
+    cont.addEventListener('dragover', (e) => {
+      if (!filtroAttivo()) return;
+      e.preventDefault();
+    });
+
+    cont.addEventListener('drop', async (e) => {
+      if (!filtroAttivo()) return;
+      e.preventDefault();
+      const targetItem = e.target.closest('.list-item');
+      if (!targetItem) return;
+      const sourceId = e.dataTransfer.getData('text/plain');
+      const targetId = targetItem.dataset.id;
+      if (!sourceId || sourceId === targetId) return;
+
+      const fromIdx = prodottiCache.findIndex(p => p.id === sourceId);
+      const toIdx = prodottiCache.findIndex(p => p.id === targetId);
+      if (fromIdx === -1 || toIdx === -1) return;
+
+      const [spostato] = prodottiCache.splice(fromIdx, 1);
+      prodottiCache.splice(toIdx, 0, spostato);
+      renderProdotti();
+
+      // Salva il nuovo ordine solo per i prodotti della categoria coinvolta
+      const categoriaId = filtroAttivo();
+      const sottoinsieme = prodottiCache.filter(p => p.categoria_id === categoriaId);
+      await Promise.all(sottoinsieme.map((p, i) =>
+        sbClient.from('prodotti').update({ ordine_visualizzazione: i }).eq('id', p.id)
+      ));
+    });
+  })();
 
   // ================= HELPERS =================
   function escapeHtml(str) {
