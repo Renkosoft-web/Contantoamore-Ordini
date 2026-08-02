@@ -506,6 +506,24 @@
             </select>
           </div>
 
+          <div style="margin-top:18px; padding-top:16px; border-top:1px solid var(--border);">
+            <label style="display:flex; align-items:center; gap:8px; margin-top:0; font-weight:600; color:var(--ink);">
+              <input type="checkbox" id="imp-notifica-attiva" style="width:auto;"> Mostra un popup di notifica quando il cliente apre il sito
+            </label>
+            <p style="font-size:12px; color:var(--ink-dim); margin-top:4px;">Utile per avvisi, promozioni, chiusure straordinarie, ecc. Puoi disattivarla quando non serve più.</p>
+
+            <label for="imp-notifica-titolo">Titolo</label>
+            <input type="text" id="imp-notifica-titolo" placeholder="Es. Chiuso per ferie">
+
+            <label for="imp-notifica-testo">Messaggio</label>
+            <textarea id="imp-notifica-testo" rows="3" placeholder="Es. Saremo chiusi dal 10 al 20 agosto, ci vediamo al rientro!"></textarea>
+
+            <label for="imp-notifica-immagine">Immagine (facoltativa)</label>
+            <input type="file" id="imp-notifica-immagine" accept="image/*">
+            <img id="imp-notifica-immagine-preview" class="img-preview">
+            <button type="button" class="danger" style="width:100%; margin-top:6px; padding:6px; font-size:12px;" onclick="eliminaImmagineDelCampo('imp-notifica-immagine-preview','imp-notifica-immagine', async () => { await sbClient.from('impostazioni_locale').update({ notifica_immagine_url: null }).eq('tenant_id', currentTenantId); await caricaImpostazioni(); })">🗑 Rimuovi immagine</button>
+          </div>
+
           <div class="msg" id="impostazioni-msg"></div>
           <button type="submit" id="btn-salva-impostazioni" style="width:100%; margin-top:20px;">Salva impostazioni</button>
         </form>
@@ -1077,6 +1095,19 @@
 
   document.getElementById('filtro-categoria-prodotti').addEventListener('change', renderProdotti);
 
+  function calcolaProssimoOrdineProdotto(categoriaId) {
+    const prodottiCategoria = prodottiCache.filter(p => p.categoria_id === categoriaId);
+    if (!prodottiCategoria.length) return 0;
+    return Math.max(...prodottiCategoria.map(p => p.ordine_visualizzazione || 0)) + 1;
+  }
+
+  document.getElementById('prodotto-categoria').addEventListener('change', () => {
+    const inCreazione = !document.getElementById('prodotto-id').value;
+    if (inCreazione) {
+      document.getElementById('prodotto-ordine').value = calcolaProssimoOrdineProdotto(document.getElementById('prodotto-categoria').value);
+    }
+  });
+
   document.getElementById('btn-nuovo-prodotto').addEventListener('click', () => {
     if (!categorieCache.length) {
       alert('Crea prima almeno una categoria.');
@@ -1087,6 +1118,7 @@
     document.getElementById('prodotto-attivo').checked = true;
     document.getElementById('prodotto-immagine-preview').classList.remove('show');
     document.getElementById('modal-prodotto-title').textContent = 'Nuovo prodotto';
+    document.getElementById('prodotto-ordine').value = calcolaProssimoOrdineProdotto(document.getElementById('prodotto-categoria').value);
     renderChecklistVariazioniProdotto([]);
     clearMsg('prodotto-msg');
     openModal('modal-prodotto');
@@ -1646,6 +1678,13 @@
     const sfondoPreview = document.getElementById('imp-sfondo-preview');
     if (imp && imp.sfondo_url) { sfondoPreview.src = imp.sfondo_url; sfondoPreview.classList.add('show'); }
     else sfondoPreview.classList.remove('show');
+
+    document.getElementById('imp-notifica-attiva').checked = !!(imp && imp.notifica_attiva);
+    document.getElementById('imp-notifica-titolo').value = imp ? (imp.notifica_titolo || '') : '';
+    document.getElementById('imp-notifica-testo').value = imp ? (imp.notifica_testo || '') : '';
+    const notificaPreview = document.getElementById('imp-notifica-immagine-preview');
+    if (imp && imp.notifica_immagine_url) { notificaPreview.src = imp.notifica_immagine_url; notificaPreview.classList.add('show'); }
+    else notificaPreview.classList.remove('show');
   }
 
   function aggiornaAnteprima() {
@@ -1706,6 +1745,14 @@
     aggiornaAnteprima();
   });
 
+  document.getElementById('imp-notifica-immagine').addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const preview = document.getElementById('imp-notifica-immagine-preview');
+    preview.src = URL.createObjectURL(file);
+    preview.classList.add('show');
+  });
+
   document.getElementById('form-impostazioni').addEventListener('submit', async (e) => {
     e.preventDefault();
     clearMsg('impostazioni-msg');
@@ -1739,6 +1786,18 @@
         sfondoUrl = pub.publicUrl;
       }
 
+      let notificaImmagineUrl = impostazioniCache ? impostazioniCache.notifica_immagine_url : null;
+      const notificaImmagineInput = document.getElementById('imp-notifica-immagine');
+      if (notificaImmagineInput.files[0]) {
+        const file = notificaImmagineInput.files[0];
+        const ext = file.name.split('.').pop();
+        const path = `${currentTenantId}/settings/notifica-${Date.now()}.${ext}`;
+        const { error: errUp } = await sbClient.storage.from(BUCKET).upload(path, file);
+        if (errUp) throw errUp;
+        const { data: pub } = sbClient.storage.from(BUCKET).getPublicUrl(path);
+        notificaImmagineUrl = pub.publicUrl;
+      }
+
       const payload = {
         tenant_id: currentTenantId,
         nome_locale: document.getElementById('imp-nome-locale').value.trim(),
@@ -1751,6 +1810,10 @@
         intervallo_slot_minuti: parseInt(document.getElementById('imp-intervallo-slot').value) || 30,
         logo_url: logoUrl,
         sfondo_url: sfondoUrl,
+        notifica_attiva: document.getElementById('imp-notifica-attiva').checked,
+        notifica_titolo: document.getElementById('imp-notifica-titolo').value.trim(),
+        notifica_testo: document.getElementById('imp-notifica-testo').value.trim(),
+        notifica_immagine_url: notificaImmagineUrl,
         aggiornato_il: new Date().toISOString()
       };
 
