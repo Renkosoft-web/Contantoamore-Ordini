@@ -362,6 +362,7 @@
 <div class="screen" id="schermata-menu">
   <header class="menu-header">
     <button id="btn-account" style="position:absolute; top:14px; right:14px; width:38px; height:38px; border-radius:50%; background:var(--panel-2); border:1px solid var(--border); font-size:18px; padding:0; color:var(--verde);">⚙️</button>
+    <div id="badge-saldo-header" style="position:absolute; top:54px; right:14px; font-size:11px; font-weight:700; color:var(--accent); display:none;"></div>
     <img id="menu-logo" style="display:none;">
     <div class="nome" id="menu-nome-locale">—</div>
   </header>
@@ -414,6 +415,13 @@
       </select>
       <label for="campo-note">Note per l'ordine <span style="font-style:italic;">(facoltative)</span></label>
       <textarea id="campo-note" rows="2" placeholder="Es. senza cipolla, citofono rotto..."></textarea>
+
+      <div id="blocco-pagamento-prepagato" style="display:none; margin-top:16px; padding:12px 14px; background:var(--panel-2); border-radius:8px;">
+        <label style="display:flex; align-items:center; gap:10px; margin:0; font-size:14px;">
+          <input type="checkbox" id="chk-paga-prepagato" style="width:auto;">
+          Paga con saldo prepagato (disponibile: <span id="saldo-disponibile-testo">€0.00</span>)
+        </label>
+      </div>
     </div>
 
     <div class="msg" id="carrello-msg"></div>
@@ -429,11 +437,22 @@
     <h2>Ordine ricevuto!</h2>
     <p style="color:var(--ink-dim); margin-top:10px;">Il tuo ordine sarà pronto per il ritiro:</p>
     <p style="font-size:18px; font-weight:700; margin-top:6px;" id="conferma-data-ora"></p>
+    <p style="font-size:13px; color:var(--error); margin-top:14px; display:none;" id="conferma-avviso"></p>
     <button id="btn-nuovo-ordine" style="margin-top:30px;">Fai un altro ordine</button>
   </div>
 </div>
 
-<div style="position:fixed; bottom:4px; right:6px; font-size:10px; color:#b2a878; z-index:1;">v2026-07-28-g (login/registrazione con password)</div>
+<div style="position:fixed; bottom:4px; right:6px; font-size:10px; color:#b2a878; z-index:1;">v2026-07-29-b (badge saldo nell'header)</div>
+
+<!-- ============ MODAL NOTIFICA GESTORE ============ -->
+<div class="modal-backdrop" id="modal-notifica">
+  <div class="modal-sheet" style="text-align:center;">
+    <img id="notifica-immagine" style="width:100%; max-height:220px; object-fit:cover; border-radius:12px; display:none; margin-bottom:16px;">
+    <h3 id="notifica-titolo" style="margin-bottom:10px;"></h3>
+    <p id="notifica-testo" style="color:var(--ink-dim); font-size:14px; white-space:pre-wrap;"></p>
+    <button type="button" style="width:100%; margin-top:18px;" onclick="closeModal('modal-notifica')">Ho capito</button>
+  </div>
+</div>
 
 <!-- ============ MODAL ACCOUNT (Profilo + I miei ordini) ============ -->
 <div class="modal-backdrop" id="modal-account">
@@ -722,6 +741,8 @@
     if (vista === 'ordini') caricaOrdiniAccount();
   }
 
+  let saldoPrepagatoCorrente = null;
+
   function renderProfiloAccount() {
     const c = clienteCorrente || {};
     document.getElementById('account-profilo-dati').innerHTML = `
@@ -731,7 +752,65 @@
         <div style="font-size:14px; color:var(--ink-dim); margin-top:8px;">✉️ ${escapeHtml(c.email || '—')}</div>
         <div style="font-size:14px; color:var(--ink-dim); margin-top:8px;">📍 ${escapeHtml(c.indirizzo || '—')}</div>
       </div>
+
+      <div class="var-gruppo" id="blocco-prepagato" style="margin-top:14px;">
+        <div class="var-gruppo-titolo"><span>💳 Saldo prepagato</span></div>
+        <div id="prepagato-contenuto">Verifica in corso...</div>
+      </div>
     `;
+    caricaSaldoPrepagato();
+  }
+
+  async function caricaSaldoPrepagato() {
+    const cont = document.getElementById('prepagato-contenuto');
+    try {
+      const { data, error } = await sbClient.rpc('leggi_saldo_prepagato');
+      if (error) throw error;
+
+      if (data === null || data === undefined) {
+        // Nessuna tessera collegata: prova prima l'auto-collegamento per email, poi offri l'inserimento manuale
+        const auto = await sbClient.rpc('auto_collega_tessera_per_email');
+        if (!auto.error && auto.data !== null && auto.data !== undefined) {
+          saldoPrepagatoCorrente = Number(auto.data);
+          cont.innerHTML = `<div style="font-size:22px; font-weight:700; color:var(--accent);">${formatEuro(saldoPrepagatoCorrente)}</div>`;
+          aggiornaBadgeSaldoHeader();
+          return;
+        }
+        cont.innerHTML = `
+          <p style="font-size:13px; color:var(--ink-dim); margin:6px 0 10px;">Hai una tessera prepagata in negozio? Inserisci il codice per collegarla.</p>
+          <div class="row-2">
+            <input type="text" id="campo-codice-tessera" placeholder="Es. 210">
+            <button type="button" id="btn-collega-tessera" style="max-width:120px;">Collega</button>
+          </div>
+          <div class="msg" id="tessera-msg"></div>
+        `;
+        document.getElementById('btn-collega-tessera').addEventListener('click', collegaTessera);
+      } else {
+        saldoPrepagatoCorrente = Number(data);
+        cont.innerHTML = `<div style="font-size:22px; font-weight:700; color:var(--accent);">${formatEuro(saldoPrepagatoCorrente)}</div>`;
+      }
+    } catch (err) {
+      cont.innerHTML = '<div class="empty-state">Impossibile verificare il saldo al momento.</div>';
+    }
+  }
+
+  async function collegaTessera() {
+    const codice = document.getElementById('campo-codice-tessera').value.trim();
+    if (!codice) return;
+    const msgEl = document.getElementById('tessera-msg');
+    msgEl.className = 'msg';
+
+    try {
+      const { data, error } = await sbClient.rpc('collega_tessera_prepagata', { codice_input: codice });
+      if (error) throw error;
+      saldoPrepagatoCorrente = Number(data);
+      document.getElementById('prepagato-contenuto').innerHTML =
+        `<div style="font-size:22px; font-weight:700; color:var(--accent);">${formatEuro(saldoPrepagatoCorrente)}</div>`;
+      aggiornaBadgeSaldoHeader();
+    } catch (err) {
+      msgEl.textContent = 'Codice non valido: ' + err.message;
+      msgEl.className = 'msg show error';
+    }
   }
 
   async function caricaOrdiniAccount() {
@@ -777,10 +856,41 @@
     mostraVista('vista-login');
   });
 
+  async function aggiornaBadgeSaldoHeader() {
+    const badge = document.getElementById('badge-saldo-header');
+    try {
+      const { data, error } = await sbClient.rpc('leggi_saldo_prepagato');
+      if (error || data === null || data === undefined) { badge.style.display = 'none'; return; }
+      saldoPrepagatoCorrente = Number(data);
+      badge.textContent = '💳 ' + formatEuro(saldoPrepagatoCorrente);
+      badge.style.display = 'block';
+    } catch (e) {
+      badge.style.display = 'none';
+    }
+  }
+
   // ================= MENU =================
   async function entraNelMenu() {
     await caricaMenu();
     mostraSchermata('schermata-menu');
+    aggiornaBadgeSaldoHeader();
+    mostraNotificaGestoreSeAttiva();
+  }
+
+  function mostraNotificaGestoreSeAttiva() {
+    if (!impostazioni || !impostazioni.notifica_attiva) return;
+    const haTitolo = (impostazioni.notifica_titolo || '').trim();
+    const haTesto = (impostazioni.notifica_testo || '').trim();
+    const haImmagine = (impostazioni.notifica_immagine_url || '').trim();
+    if (!haTitolo && !haTesto && !haImmagine) return; // notifica attiva ma vuota: non mostrare nulla
+
+    document.getElementById('notifica-titolo').textContent = haTitolo;
+    document.getElementById('notifica-testo').textContent = haTesto;
+    const img = document.getElementById('notifica-immagine');
+    if (haImmagine) { img.src = haImmagine; img.style.display = 'block'; }
+    else { img.style.display = 'none'; }
+
+    openModal('modal-notifica');
   }
 
   async function caricaMenu() {
@@ -1009,11 +1119,39 @@
     }
   }
 
-  document.getElementById('carrello-fab').addEventListener('click', () => {
+  document.getElementById('carrello-fab').addEventListener('click', async () => {
     renderCarrello();
     generaFasceOrarie();
+    await aggiornaBloccoPrepagato();
     openModal('modal-carrello');
   });
+
+  async function aggiornaBloccoPrepagato() {
+    const blocco = document.getElementById('blocco-pagamento-prepagato');
+    const chk = document.getElementById('chk-paga-prepagato');
+    chk.checked = false;
+    try {
+      let { data, error } = await sbClient.rpc('leggi_saldo_prepagato');
+      if (!error && (data === null || data === undefined)) {
+        const auto = await sbClient.rpc('auto_collega_tessera_per_email');
+        if (!auto.error && auto.data !== null && auto.data !== undefined) data = auto.data;
+      }
+      if (error || data === null || data === undefined) { blocco.style.display = 'none'; return; }
+      saldoPrepagatoCorrente = Number(data);
+      const totale = totaleCarrello();
+      document.getElementById('saldo-disponibile-testo').textContent = formatEuro(saldoPrepagatoCorrente);
+      if (saldoPrepagatoCorrente >= totale && totale > 0) {
+        blocco.style.display = 'block';
+        chk.disabled = false;
+      } else {
+        blocco.style.display = 'block';
+        chk.disabled = true;
+        chk.parentElement.style.opacity = '0.5';
+      }
+    } catch (e) {
+      blocco.style.display = 'none';
+    }
+  }
 
   function renderCarrello() {
     const cont = document.getElementById('carrello-righe');
@@ -1068,39 +1206,41 @@
     const dataScelta = document.getElementById('campo-data-ritiro').value;
     if (!dataScelta) { sel.innerHTML = '<option value="">Seleziona prima il giorno</option>'; return; }
 
-    // Controlla se il locale è aperto nel giorno della settimana selezionato
+    // Legge le fasce specifiche del giorno della settimana selezionato
     const chiaviGiorno = ['dom', 'lun', 'mar', 'mer', 'gio', 'ven', 'sab'];
     const dataObj = new Date(dataScelta + 'T00:00:00');
     const chiaveGiorno = chiaviGiorno[dataObj.getDay()];
-    const giorniApertura = (impostazioni && impostazioni.giorni_apertura) ? impostazioni.giorni_apertura : {};
-    const giornoAperto = giorniApertura[chiaveGiorno] !== false;
+    const fasceOrarioSettimana = (impostazioni && impostazioni.fasce_orario && typeof impostazioni.fasce_orario === 'object' && !Array.isArray(impostazioni.fasce_orario))
+      ? impostazioni.fasce_orario
+      : {};
+    const fasce = fasceOrarioSettimana[chiaveGiorno] || [];
 
-    if (!giornoAperto) {
+    if (!fasce.length) {
       sel.innerHTML = '<option value="">Il locale è chiuso in questo giorno</option>';
       return;
     }
 
-    const apertura = (impostazioni && impostazioni.orario_apertura) ? impostazioni.orario_apertura.slice(0,5) : '09:00';
-    const chiusura = (impostazioni && impostazioni.orario_chiusura) ? impostazioni.orario_chiusura.slice(0,5) : '20:00';
     const intervallo = (impostazioni && impostazioni.intervallo_slot_minuti) ? impostazioni.intervallo_slot_minuti : 30;
-
-    const [hA, mA] = apertura.split(':').map(Number);
-    const [hC, mC] = chiusura.split(':').map(Number);
-    let minuti = hA * 60 + mA;
-    const minutiChiusura = hC * 60 + mC;
 
     const isOggi = dataScelta === oggi.toISOString().split('T')[0];
     const minutiOra = oggi.getHours() * 60 + oggi.getMinutes();
 
     const slots = [];
-    while (minuti <= minutiChiusura) {
-      if (!isOggi || minuti > minutiOra + 15) {
-        const h = String(Math.floor(minuti / 60)).padStart(2, '0');
-        const m = String(minuti % 60).padStart(2, '0');
-        slots.push(`${h}:${m}`);
+    fasce.forEach(fascia => {
+      const [hA, mA] = fascia.apertura.split(':').map(Number);
+      const [hC, mC] = fascia.chiusura.split(':').map(Number);
+      let minuti = hA * 60 + mA;
+      const minutiChiusura = hC * 60 + mC;
+
+      while (minuti <= minutiChiusura) {
+        if (!isOggi || minuti > minutiOra + 15) {
+          const h = String(Math.floor(minuti / 60)).padStart(2, '0');
+          const m = String(minuti % 60).padStart(2, '0');
+          slots.push(`${h}:${m}`);
+        }
+        minuti += intervallo;
       }
-      minuti += intervallo;
-    }
+    });
 
     if (!slots.length) {
       sel.innerHTML = '<option value="">Nessuna fascia disponibile per oggi</option>';
@@ -1145,6 +1285,25 @@
       }));
       const { error: errRighe } = await sbClient.from('ordini_righe').insert(righe);
       if (errRighe) throw errRighe;
+
+      const pagaConPrepagato = document.getElementById('chk-paga-prepagato').checked && !document.getElementById('chk-paga-prepagato').disabled;
+      let avvisoPagamento = '';
+      if (pagaConPrepagato) {
+        const { error: errPagamento } = await sbClient.rpc('paga_con_prepagato', { ordine_id_input: ordine.id, importo_input: totale });
+        if (errPagamento) {
+          avvisoPagamento = 'Il pagamento con il prepagato non è andato a buon fine (' + errPagamento.message + '). Paga pure in negozio.';
+        } else {
+          aggiornaBadgeSaldoHeader();
+        }
+      }
+
+      const avvisoEl = document.getElementById('conferma-avviso');
+      if (avvisoPagamento) {
+        avvisoEl.textContent = avvisoPagamento;
+        avvisoEl.style.display = 'block';
+      } else {
+        avvisoEl.style.display = 'none';
+      }
 
       document.getElementById('conferma-data-ora').textContent =
         new Date(dataRitiro + 'T' + oraRitiro).toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long' }) + ' alle ' + oraRitiro;
