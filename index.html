@@ -687,11 +687,13 @@
 <!-- ============ MODAL DETTAGLIO ORDINE ============ -->
 <div class="modal-backdrop" id="modal-dettaglio-ordine">
   <div class="modal">
+    <input type="hidden" id="dettaglio-ordine-id">
     <h3>Ordine — <span id="dettaglio-ordine-cliente"></span></h3>
     <p style="color:var(--ink-dim); font-size:13px; margin-top:4px;" id="dettaglio-ordine-info"></p>
     <div id="dettaglio-ordine-righe" style="margin-top:16px;"></div>
     <div id="dettaglio-ordine-note" style="margin-top:14px; font-size:13px; color:var(--ink-dim);"></div>
     <div class="modal-actions">
+      <button type="button" class="secondary" onclick="richiediRistampa(document.getElementById('dettaglio-ordine-id').value)">🖨️ Ristampa</button>
       <button type="button" class="secondary" onclick="closeModal('modal-dettaglio-ordine')">Chiudi</button>
     </div>
   </div>
@@ -871,6 +873,11 @@
       tab.classList.add('active');
       document.getElementById('section-' + tab.dataset.section).classList.add('active');
       if (tab.dataset.section === 'immagini') caricaImmagini();
+      if (tab.dataset.section === 'ordini') {
+        const campoData = document.getElementById('filtro-data-ordini');
+        campoData.value = new Date().toISOString().split('T')[0];
+        renderOrdini();
+      }
     });
   });
 
@@ -2035,16 +2042,33 @@
               <div class="meta" style="margin-top:4px;">
                 <span class="badge">${escapeHtml(o.stato)}</span>
                 ${nonStampato ? `<span class="badge" style="background:var(--error); color:#fff; border-color:var(--error);">⚠️ NON STAMPATO — in coda (${o.tentativi_stampa} tentativi/o)</span>` : ''}
+                ${!o.visto ? `<span class="badge" style="background:var(--accent); color:#1b1f1a; border-color:var(--accent);">🆕 NUOVO</span>` : ''}
+                ${o.richiesta_ristampa ? `<span class="badge">🖨️ Ristampa in corso...</span>` : ''}
               </div>
             </div>
           </div>
           <div class="item-actions">
+            ${!o.visto ? `<button class="secondary" onclick="segnaOrdineVisto('${o.id}')">Segna visto</button>` : ''}
+            <button class="secondary" onclick="richiediRistampa('${o.id}')" ${o.richiesta_ristampa ? 'disabled' : ''}>Ristampa</button>
             <button class="secondary" onclick="apriDettaglioOrdine('${o.id}')">Dettagli</button>
           </div>
         </div>
       `;
     }).join('');
   }
+
+  window.segnaOrdineVisto = async function(id) {
+    const { error } = await sbClient.from('ordini').update({ visto: true }).eq('id', id);
+    if (error) { alert('Errore: ' + error.message); return; }
+    await caricaOrdini();
+  };
+
+  window.richiediRistampa = async function(id) {
+    if (!confirm('Richiedere la ristampa di questo ordine? Verrà stampato di nuovo dallo spooler entro 30 secondi.')) return;
+    const { error } = await sbClient.from('ordini').update({ richiesta_ristampa: true }).eq('id', id);
+    if (error) { alert('Errore: ' + error.message); return; }
+    await caricaOrdini();
+  };
 
   document.getElementById('filtro-data-ordini').addEventListener('change', renderOrdini);
   document.getElementById('filtro-cliente-ordini').addEventListener('change', renderOrdini);
@@ -2057,6 +2081,12 @@
   window.apriDettaglioOrdine = async function(ordineId) {
     const o = ordiniCache.find(x => x.id === ordineId);
     if (!o) return;
+
+    if (!o.visto) {
+      sbClient.from('ordini').update({ visto: true }).eq('id', ordineId).then(() => { o.visto = true; renderOrdini(); });
+    }
+    document.getElementById('dettaglio-ordine-id').value = ordineId;
+
     const cliente = o.clienti ? (o.clienti.nome + ' ' + o.clienti.cognome) : 'Cliente sconosciuto';
     document.getElementById('dettaglio-ordine-cliente').textContent = cliente;
     const dataFormattata = new Date(o.data_ritiro + 'T' + o.ora_ritiro).toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long' });
