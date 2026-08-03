@@ -107,7 +107,7 @@
     flex-direction: column;
     align-items: center;
     gap: 6px;
-    position: sticky; top: 0; z-index: 20;
+    position: fixed; top: 0; left: 0; right: 0; z-index: 20;
   }
   header.menu-header img { height: 52px; max-width: 240px; width: auto; object-fit: contain; }
   header.menu-header .nome { font-weight: 700; font-size: 17px; text-align: center; color: var(--verde); }
@@ -118,7 +118,7 @@
     overflow-x: auto;
     padding: 12px 18px;
     background: var(--bg);
-    position: sticky; top: var(--header-h, 90px); z-index: 19;
+    position: fixed; top: var(--header-h, 90px); left: 0; right: 0; z-index: 19;
     border-bottom: 1px solid var(--border);
   }
   nav.categorie-tabs::-webkit-scrollbar { display: none; }
@@ -135,7 +135,7 @@
   }
   nav.categorie-tabs button.active { background: var(--verde); color: #fff; border-color: var(--verde); opacity: 1; }
 
-  main.menu-main { padding: 18px; max-width: 700px; margin: 0 auto; }
+  main.menu-main { padding: 18px; padding-top: var(--contenuto-top, 140px); max-width: 700px; margin: 0 auto; }
   .categoria-blocco { margin-bottom: 28px; }
   .categoria-titolo { font-size: 20px; font-weight: 800; margin-bottom: 4px; color: var(--verde); font-family: 'Baloo 2', sans-serif; }
   .categoria-desc { font-size: 13px; color: var(--ink-dim); margin-bottom: 14px; }
@@ -442,7 +442,7 @@
   </div>
 </div>
 
-<div style="position:fixed; bottom:4px; right:6px; font-size:10px; color:#b2a878; z-index:1;">v2026-08-02-a (scrollspy categorie)</div>
+<div style="position:fixed; bottom:4px; right:6px; font-size:10px; color:#b2a878; z-index:1;">v2026-08-02-b (header/categorie fixed veri)</div>
 
 <!-- ============ MODAL NOTIFICA GESTORE ============ -->
 <div class="modal-backdrop" id="modal-notifica">
@@ -875,6 +875,15 @@
     mostraSchermata('schermata-menu');
     aggiornaBadgeSaldoHeader();
     mostraNotificaGestoreSeAttiva();
+
+    // Header e barra categorie sono ora "fixed" (fuori dal flusso normale):
+    // calcola lo spazio reale che occupano e spingi giù il contenuto di conseguenza.
+    requestAnimationFrame(() => {
+      const header = document.querySelector('header.menu-header');
+      const nav = document.querySelector('nav.categorie-tabs');
+      const totale = (header ? header.offsetHeight : 0) + (nav ? nav.offsetHeight : 0);
+      document.documentElement.style.setProperty('--contenuto-top', (totale + 10) + 'px');
+    });
   }
 
   function mostraNotificaGestoreSeAttiva() {
