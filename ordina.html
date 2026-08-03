@@ -419,8 +419,9 @@
       <div id="blocco-pagamento-prepagato" style="display:none; margin-top:16px; padding:12px 14px; background:var(--panel-2); border-radius:8px;">
         <label style="display:flex; align-items:center; gap:10px; margin:0; font-size:14px;">
           <input type="checkbox" id="chk-paga-prepagato" style="width:auto;">
-          Paga con saldo prepagato (disponibile: <span id="saldo-disponibile-testo">€0.00</span>)
+          Usa il tuo saldo prepagato (disponibile: <span id="saldo-disponibile-testo">€0.00</span>)
         </label>
+        <p id="dettaglio-prepagato-parziale" style="font-size:13px; color:var(--ink-dim); margin-top:8px; display:none;"></p>
       </div>
     </div>
 
@@ -438,11 +439,12 @@
     <p style="color:var(--ink-dim); margin-top:10px;">Il tuo ordine sarà pronto per il ritiro:</p>
     <p style="font-size:18px; font-weight:700; margin-top:6px;" id="conferma-data-ora"></p>
     <p style="font-size:13px; color:var(--error); margin-top:14px; display:none;" id="conferma-avviso"></p>
+    <p style="font-size:13px; color:var(--accent); margin-top:10px; display:none;" id="conferma-riepilogo-prepagato"></p>
     <button id="btn-nuovo-ordine" style="margin-top:30px;">Fai un altro ordine</button>
   </div>
 </div>
 
-<div style="position:fixed; bottom:4px; right:6px; font-size:10px; color:#b2a878; z-index:1;">v2026-08-02-c (fix altezza header/nav)</div>
+<div style="position:fixed; bottom:4px; right:6px; font-size:10px; color:#b2a878; z-index:1;">v2026-08-03-a (prepagato parziale)</div>
 
 <!-- ============ MODAL NOTIFICA GESTORE ============ -->
 <div class="modal-backdrop" id="modal-notifica">
@@ -1183,25 +1185,38 @@
   async function aggiornaBloccoPrepagato() {
     const blocco = document.getElementById('blocco-pagamento-prepagato');
     const chk = document.getElementById('chk-paga-prepagato');
+    const dettaglio = document.getElementById('dettaglio-prepagato-parziale');
     chk.checked = false;
+    dettaglio.style.display = 'none';
     try {
       let { data, error } = await sbClient.rpc('leggi_saldo_prepagato');
       if (!error && (data === null || data === undefined)) {
         const auto = await sbClient.rpc('auto_collega_tessera_per_email');
         if (!auto.error && auto.data !== null && auto.data !== undefined) data = auto.data;
       }
-      if (error || data === null || data === undefined) { blocco.style.display = 'none'; return; }
+      if (error || data === null || data === undefined || Number(data) <= 0) { blocco.style.display = 'none'; return; }
+
       saldoPrepagatoCorrente = Number(data);
       const totale = totaleCarrello();
       document.getElementById('saldo-disponibile-testo').textContent = formatEuro(saldoPrepagatoCorrente);
-      if (saldoPrepagatoCorrente >= totale && totale > 0) {
-        blocco.style.display = 'block';
-        chk.disabled = false;
-      } else {
-        blocco.style.display = 'block';
-        chk.disabled = true;
-        chk.parentElement.style.opacity = '0.5';
-      }
+      blocco.style.display = 'block';
+      chk.disabled = false;
+      chk.parentElement.style.opacity = '1';
+
+      const mostraDettaglio = () => {
+        if (!chk.checked) { dettaglio.style.display = 'none'; return; }
+        const importoUsato = Math.min(saldoPrepagatoCorrente, totale);
+        const daPagareInCassa = totale - importoUsato;
+        const residuo = saldoPrepagatoCorrente - importoUsato;
+        if (daPagareInCassa > 0) {
+          dettaglio.textContent = `Verranno scalati ${formatEuro(importoUsato)} dal tuo saldo. Resterà da pagare in cassa: ${formatEuro(daPagareInCassa)}. Credito residuo dopo: ${formatEuro(residuo)}.`;
+        } else {
+          dettaglio.textContent = `L'intero ordine (${formatEuro(totale)}) verrà pagato col saldo. Credito residuo dopo: ${formatEuro(residuo)}.`;
+        }
+        dettaglio.style.display = 'block';
+      };
+      chk.onchange = mostraDettaglio;
+      mostraDettaglio();
     } catch (e) {
       blocco.style.display = 'none';
     }
@@ -1343,7 +1358,8 @@
       const pagaConPrepagato = document.getElementById('chk-paga-prepagato').checked && !document.getElementById('chk-paga-prepagato').disabled;
       let avvisoPagamento = '';
       if (pagaConPrepagato) {
-        const { error: errPagamento } = await sbClient.rpc('paga_con_prepagato', { ordine_id_input: ordine.id, importo_input: totale });
+        const importoDaScalare = Math.min(saldoPrepagatoCorrente, totale);
+        const { error: errPagamento } = await sbClient.rpc('paga_con_prepagato', { ordine_id_input: ordine.id, importo_input: importoDaScalare });
         if (errPagamento) {
           avvisoPagamento = 'Il pagamento con il prepagato non è andato a buon fine (' + errPagamento.message + '). Paga pure in negozio.';
         } else {
@@ -1361,6 +1377,18 @@
 
       document.getElementById('conferma-data-ora').textContent =
         new Date(dataRitiro + 'T' + oraRitiro).toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long' }) + ' alle ' + oraRitiro;
+
+      const riepilogoPrepagato = document.getElementById('conferma-riepilogo-prepagato');
+      if (pagaConPrepagato && !avvisoPagamento) {
+        const importoUsato = Math.min(saldoPrepagatoCorrente, totale);
+        const daPagareInCassa = totale - importoUsato;
+        riepilogoPrepagato.textContent = daPagareInCassa > 0
+          ? `Totale ${formatEuro(totale)} − ${formatEuro(importoUsato)} saldo prepagato = ${formatEuro(daPagareInCassa)} da pagare in cassa.`
+          : `Ordine interamente pagato col saldo prepagato (${formatEuro(importoUsato)}).`;
+        riepilogoPrepagato.style.display = 'block';
+      } else {
+        riepilogoPrepagato.style.display = 'none';
+      }
 
       carrello = [];
       aggiornaFabCarrello();
