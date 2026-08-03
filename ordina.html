@@ -442,7 +442,7 @@
   </div>
 </div>
 
-<div style="position:fixed; bottom:4px; right:6px; font-size:10px; color:#b2a878; z-index:1;">v2026-08-02-b (header/categorie fixed veri)</div>
+<div style="position:fixed; bottom:4px; right:6px; font-size:10px; color:#b2a878; z-index:1;">v2026-08-02-c (fix altezza header/nav)</div>
 
 <!-- ============ MODAL NOTIFICA GESTORE ============ -->
 <div class="modal-backdrop" id="modal-notifica">
@@ -876,13 +876,21 @@
     aggiornaBadgeSaldoHeader();
     mostraNotificaGestoreSeAttiva();
 
-    // Header e barra categorie sono ora "fixed" (fuori dal flusso normale):
-    // calcola lo spazio reale che occupano e spingi giù il contenuto di conseguenza.
+    // Header e barra categorie sono "fixed" (fuori dal flusso normale). Ora che la
+    // schermata menu è finalmente visibile (prima, durante il login, era display:none
+    // e quindi "alta 0px" per il browser), ricalcoliamo per davvero le altezze:
+    // prima l'header (da cui dipende la posizione della barra categorie sotto di esso),
+    // poi lo spazio totale da lasciare come margine al contenuto.
     requestAnimationFrame(() => {
       const header = document.querySelector('header.menu-header');
-      const nav = document.querySelector('nav.categorie-tabs');
-      const totale = (header ? header.offsetHeight : 0) + (nav ? nav.offsetHeight : 0);
-      document.documentElement.style.setProperty('--contenuto-top', (totale + 10) + 'px');
+      const hHeader = header ? header.offsetHeight : 90;
+      document.documentElement.style.setProperty('--header-h', hHeader + 'px');
+
+      requestAnimationFrame(() => {
+        const nav = document.querySelector('nav.categorie-tabs');
+        const totale = hHeader + (nav ? nav.offsetHeight : 0);
+        document.documentElement.style.setProperty('--contenuto-top', (totale + 10) + 'px');
+      });
     });
   }
 
