@@ -699,6 +699,18 @@
   </div>
 </div>
 
+<!-- ============ MODAL STORICO ORDINI CLIENTE ============ -->
+<div class="modal-backdrop" id="modal-storico-cliente">
+  <div class="modal">
+    <h3>Storico ordini — <span id="storico-cliente-nome"></span></h3>
+    <p style="color:var(--ink-dim); font-size:13px; margin-top:4px;" id="storico-cliente-riepilogo"></p>
+    <div id="storico-cliente-lista" style="margin-top:16px; max-height:400px; overflow-y:auto;"></div>
+    <div class="modal-actions">
+      <button type="button" class="secondary" onclick="closeModal('modal-storico-cliente')">Chiudi</button>
+    </div>
+  </div>
+</div>
+
 <!-- ============ MODAL STAMPANTE ============ -->
 <div class="modal-backdrop" id="modal-stampante">
   <div class="modal">
@@ -1954,6 +1966,19 @@
 
     if (error) { console.error(error); return; }
     clientiCache = data || [];
+
+    // Per i clienti collegati a una tessera prepagata, recupero il saldo attuale
+    const codiciCollegati = clientiCache.filter(c => c.codice_ristorandro).map(c => c.codice_ristorandro);
+    if (codiciCollegati.length) {
+      const { data: prepagati } = await sbClient
+        .from('clienti_prepagati').select('codice_ristorandro, saldo')
+        .eq('tenant_id', currentTenantId)
+        .in('codice_ristorandro', codiciCollegati);
+      const mappaSaldi = {};
+      (prepagati || []).forEach(p => { mappaSaldi[p.codice_ristorandro] = p.saldo; });
+      clientiCache.forEach(c => { c.saldo_prepagato = c.codice_ristorandro ? mappaSaldi[c.codice_ristorandro] : null; });
+    }
+
     renderClienti();
     popolaFiltroClienti();
   }
@@ -1981,12 +2006,70 @@
               ${c.email ? ' · ✉️ ' + escapeHtml(c.email) : ''}
               ${c.indirizzo ? ' · 📍 ' + escapeHtml(c.indirizzo) : ''}
             </div>
-            <div class="meta">Iscritto il ${new Date(c.data_iscrizione).toLocaleDateString('it-IT')}</div>
+            <div class="meta">
+              Iscritto il ${new Date(c.data_iscrizione).toLocaleDateString('it-IT')}
+              ${c.saldo_prepagato !== null && c.saldo_prepagato !== undefined ? ` · <span class="badge" style="background:var(--accent); color:#1b1f1a; border-color:var(--accent);">💳 Saldo: €${Number(c.saldo_prepagato).toFixed(2)}</span>` : ''}
+            </div>
           </div>
+        </div>
+        <div class="item-actions">
+          <button class="secondary" onclick="apriStoricoCliente('${c.id}')">Storico ordini</button>
         </div>
       </div>
     `).join('');
   }
+
+  window.apriStoricoCliente = async function(clienteId) {
+    const c = clientiCache.find(x => x.id === clienteId);
+    if (!c) return;
+
+    document.getElementById('storico-cliente-nome').textContent = `${c.nome} ${c.cognome}`;
+    const cont = document.getElementById('storico-cliente-lista');
+    cont.innerHTML = '<div class="empty-state">Caricamento...</div>';
+    document.getElementById('storico-cliente-riepilogo').textContent = '';
+    openModal('modal-storico-cliente');
+
+    const [{ data: ordiniCliente, error: errOrdini }, { data: movimenti, error: errMov }] = await Promise.all([
+      sbClient.from('ordini').select('*').eq('cliente_id', clienteId).order('creato_il', { ascending: false }),
+      sbClient.from('movimenti_prepagato').select('ordine_id, importo').eq('cliente_id', clienteId)
+    ]);
+
+    if (errOrdini) { cont.innerHTML = '<div class="empty-state">Errore nel caricamento.</div>'; return; }
+
+    const mappaMovimenti = {};
+    (movimenti || []).forEach(m => { if (m.ordine_id) mappaMovimenti[m.ordine_id] = m.importo; });
+
+    const lista = ordiniCliente || [];
+    if (!lista.length) {
+      cont.innerHTML = '<div class="empty-state">Nessun ordine trovato per questo cliente.</div>';
+      return;
+    }
+
+    const totaleSpeso = lista.reduce((s, o) => s + Number(o.totale), 0);
+    const numeroConPrepagato = lista.filter(o => mappaMovimenti[o.id] !== undefined).length;
+    document.getElementById('storico-cliente-riepilogo').textContent =
+      `${lista.length} ordine/i · totale speso €${totaleSpeso.toFixed(2)} · ${numeroConPrepagato} pagato/i con prepagato`;
+
+    cont.innerHTML = lista.map(o => {
+      const pagatoConPrepagato = mappaMovimenti[o.id] !== undefined;
+      const data = new Date(o.data_ritiro + 'T' + o.ora_ritiro).toLocaleDateString('it-IT');
+      return `
+        <div class="list-item">
+          <div class="item-main">
+            <div class="item-info">
+              <div class="name">€${Number(o.totale).toFixed(2)} — ${data} alle ${o.ora_ritiro.slice(0,5)}</div>
+              <div class="meta">
+                <span class="badge">${escapeHtml(o.stato)}</span>
+                ${pagatoConPrepagato
+                  ? `<span class="badge" style="background:var(--accent); color:#1b1f1a; border-color:var(--accent);">💳 Pagato con prepagato</span>`
+                  : `<span class="badge">💶 Pagato in cassa/altro</span>`}
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+    }).join('');
+  };
 
   function popolaFiltroClienti() {
     const sel = document.getElementById('filtro-cliente-ordini');
