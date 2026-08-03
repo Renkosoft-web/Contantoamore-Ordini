@@ -2064,9 +2064,12 @@
   };
 
   window.richiediRistampa = async function(id) {
-    if (!confirm('Richiedere la ristampa di questo ordine? Verrà stampato di nuovo dallo spooler entro 30 secondi.')) return;
+    if (!confirm('Richiedere la ristampa di questo ordine?')) return;
     const { error } = await sbClient.from('ordini').update({ richiesta_ristampa: true }).eq('id', id);
     if (error) { alert('Errore: ' + error.message); return; }
+    if (window.AndroidBridge && window.AndroidBridge.attivaControlloOrdiniOra) {
+      window.AndroidBridge.attivaControlloOrdiniOra();
+    }
     await caricaOrdini();
   };
 
