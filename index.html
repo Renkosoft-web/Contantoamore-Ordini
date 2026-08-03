@@ -858,6 +858,7 @@
       await caricaClienti();
       await caricaOrdini();
       avviaRefreshAutomaticoOrdini();
+      avviaRefreshAutomaticoClienti();
 
     } catch (err) {
       debugLog('ECCEZIONE FINALE: ' + (err && err.message ? err.message : JSON.stringify(err)));
@@ -2324,6 +2325,20 @@
     }, 20000);
   }
 
+  // ================= REFRESH AUTOMATICO CLIENTI (saldo prepagato in presa diretta) =================
+  let refreshClientiAvviato = false;
+
+  function avviaRefreshAutomaticoClienti() {
+    if (refreshClientiAvviato) return;
+    refreshClientiAvviato = true;
+
+    setInterval(async () => {
+      // Non interrompere se è aperto lo storico ordini di un cliente in quel momento.
+      if (document.getElementById('modal-storico-cliente').classList.contains('show')) return;
+      await caricaClienti();
+    }, 20000);
+  }
+
   // ================= HELPERS =================
   function escapeHtml(str) {
     if (!str) return '';
@@ -2354,6 +2369,7 @@
         await caricaClienti();
         await caricaOrdini();
         avviaRefreshAutomaticoOrdini();
+        avviaRefreshAutomaticoClienti();
       } else {
         // Sessione valida ma nessun locale collegato: torna al login
         await sbClient.auth.signOut();
