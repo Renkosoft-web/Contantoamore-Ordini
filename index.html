@@ -694,6 +694,7 @@
     <div id="dettaglio-ordine-note" style="margin-top:14px; font-size:13px; color:var(--ink-dim);"></div>
     <div class="modal-actions">
       <button type="button" class="secondary" onclick="richiediRistampa(document.getElementById('dettaglio-ordine-id').value)">🖨️ Ristampa</button>
+      <button type="button" class="secondary" onclick="richiediRiepilogo(document.getElementById('dettaglio-ordine-id').value)">📋 Stampa riepilogo</button>
       <button type="button" class="secondary" onclick="closeModal('modal-dettaglio-ordine')">Chiudi</button>
     </div>
   </div>
@@ -725,6 +726,11 @@
 
       <label for="stampante-porta">Porta</label>
       <input type="number" id="stampante-porta" value="9100">
+
+      <label style="display:flex; align-items:center; gap:8px; margin-top:16px;">
+        <input type="checkbox" id="stampante-riepilogo" style="width:auto;"> È la stampante per i riepiloghi/preconto
+      </label>
+      <p style="font-size:12px; color:var(--ink-dim); margin-top:4px;">Su questa stampante finiranno i riepiloghi ordine con tutti i prezzi (come un preconto), quando premi "Stampa riepilogo".</p>
 
       <div class="msg" id="stampante-msg"></div>
       <div class="modal-actions">
@@ -1881,7 +1887,7 @@
       <div class="list-item">
         <div class="item-main">
           <div class="item-info">
-            <div class="name">${escapeHtml(s.nome)}</div>
+            <div class="name">${escapeHtml(s.nome)} ${s.is_riepilogo ? '<span class="badge" style="background:var(--accent); color:#1b1f1a; border-color:var(--accent);">📋 Riepiloghi</span>' : ''}</div>
             <div class="meta">${escapeHtml(s.ip_stampante)}:${s.porta}</div>
           </div>
         </div>
@@ -1917,6 +1923,7 @@
     document.getElementById('stampante-nome').value = s.nome;
     document.getElementById('stampante-ip').value = s.ip_stampante;
     document.getElementById('stampante-porta').value = s.porta;
+    document.getElementById('stampante-riepilogo').checked = !!s.is_riepilogo;
     document.getElementById('modal-stampante-title').textContent = 'Modifica stampante';
     clearMsg('stampante-msg');
     openModal('modal-stampante');
@@ -1938,7 +1945,8 @@
       tenant_id: currentTenantId,
       nome: document.getElementById('stampante-nome').value.trim(),
       ip_stampante: document.getElementById('stampante-ip').value.trim(),
-      porta: parseInt(document.getElementById('stampante-porta').value) || 9100
+      porta: parseInt(document.getElementById('stampante-porta').value) || 9100,
+      is_riepilogo: document.getElementById('stampante-riepilogo').checked
     };
 
     try {
@@ -2128,12 +2136,14 @@
                 ${nonStampato ? `<span class="badge" style="background:var(--error); color:#fff; border-color:var(--error);">⚠️ NON STAMPATO — in coda (${o.tentativi_stampa} tentativi/o)</span>` : ''}
                 ${!o.visto ? `<span class="badge" style="background:var(--accent); color:#1b1f1a; border-color:var(--accent);">🆕 NUOVO</span>` : ''}
                 ${o.richiesta_ristampa ? `<span class="badge">🖨️ Ristampa in corso...</span>` : ''}
+                ${o.richiesta_riepilogo ? `<span class="badge">📋 Riepilogo in corso...</span>` : ''}
               </div>
             </div>
           </div>
           <div class="item-actions">
             ${!o.visto ? `<button class="secondary" onclick="segnaOrdineVisto('${o.id}')">Segna visto</button>` : ''}
             <button class="secondary" onclick="richiediRistampa('${o.id}')" ${o.richiesta_ristampa ? 'disabled' : ''}>Ristampa</button>
+            <button class="secondary" onclick="richiediRiepilogo('${o.id}')" ${o.richiesta_riepilogo ? 'disabled' : ''}>Riepilogo</button>
             <button class="secondary" onclick="apriDettaglioOrdine('${o.id}')">Dettagli</button>
           </div>
         </div>
@@ -2150,6 +2160,16 @@
   window.richiediRistampa = async function(id) {
     if (!confirm('Richiedere la ristampa di questo ordine?')) return;
     const { error } = await sbClient.from('ordini').update({ richiesta_ristampa: true }).eq('id', id);
+    if (error) { alert('Errore: ' + error.message); return; }
+    if (window.AndroidBridge && window.AndroidBridge.attivaControlloOrdiniOra) {
+      window.AndroidBridge.attivaControlloOrdiniOra();
+    }
+    await caricaOrdini();
+  };
+
+  window.richiediRiepilogo = async function(id) {
+    if (!confirm('Stampare il riepilogo (con i prezzi, come un preconto) di questo ordine sulla stampante dedicata?')) return;
+    const { error } = await sbClient.from('ordini').update({ richiesta_riepilogo: true }).eq('id', id);
     if (error) { alert('Errore: ' + error.message); return; }
     if (window.AndroidBridge && window.AndroidBridge.attivaControlloOrdiniOra) {
       window.AndroidBridge.attivaControlloOrdiniOra();
