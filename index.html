@@ -843,6 +843,7 @@
       await caricaStampanti();
       await caricaClienti();
       await caricaOrdini();
+      avviaRefreshAutomaticoOrdini();
 
     } catch (err) {
       debugLog('ECCEZIONE FINALE: ' + (err && err.message ? err.message : JSON.stringify(err)));
@@ -2188,6 +2189,21 @@
     });
   })();
 
+  // ================= REFRESH AUTOMATICO ORDINI =================
+  let refreshOrdiniAvviato = false;
+
+  function avviaRefreshAutomaticoOrdini() {
+    if (refreshOrdiniAvviato) return; // evita di avviarlo due volte
+    refreshOrdiniAvviato = true;
+
+    setInterval(async () => {
+      // Non interrompere se l'admin ha aperto il dettaglio di un ordine in quel momento,
+      // altrimenti la finestra potrebbe chiudersi/ricaricarsi mentre la sta leggendo.
+      if (document.getElementById('modal-dettaglio-ordine').classList.contains('show')) return;
+      await caricaOrdini();
+    }, 20000);
+  }
+
   // ================= HELPERS =================
   function escapeHtml(str) {
     if (!str) return '';
@@ -2217,6 +2233,7 @@
         await caricaStampanti();
         await caricaClienti();
         await caricaOrdini();
+        avviaRefreshAutomaticoOrdini();
       } else {
         // Sessione valida ma nessun locale collegato: torna al login
         await sbClient.auth.signOut();
