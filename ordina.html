@@ -444,7 +444,7 @@
   </div>
 </div>
 
-<div style="position:fixed; bottom:4px; right:6px; font-size:10px; color:#b2a878; z-index:1;">v2026-08-03-b (fix race condition prepagato)</div>
+<div style="position:fixed; bottom:4px; right:6px; font-size:10px; color:#b2a878; z-index:1;">v2026-08-03-c (password collegamento tessera)</div>
 
 <!-- ============ MODAL NOTIFICA GESTORE ============ -->
 <div class="modal-backdrop" id="modal-notifica">
@@ -779,11 +779,12 @@
           return;
         }
         cont.innerHTML = `
-          <p style="font-size:13px; color:var(--ink-dim); margin:6px 0 10px;">Hai una tessera prepagata in negozio? Inserisci il codice per collegarla.</p>
+          <p style="font-size:13px; color:var(--ink-dim); margin:6px 0 10px;">Hai una tessera prepagata in negozio? Chiedi al personale di inserire il codice per collegarla.</p>
           <div class="row-2">
-            <input type="text" id="campo-codice-tessera" placeholder="Es. 210">
-            <button type="button" id="btn-collega-tessera" style="max-width:120px;">Collega</button>
+            <input type="text" id="campo-codice-tessera" placeholder="Codice tessera (es. 210)">
+            <input type="password" id="campo-password-tessera" placeholder="Password personale">
           </div>
+          <button type="button" id="btn-collega-tessera" style="width:100%; margin-top:8px;">Collega</button>
           <div class="msg" id="tessera-msg"></div>
         `;
         document.getElementById('btn-collega-tessera').addEventListener('click', collegaTessera);
@@ -798,9 +799,16 @@
 
   async function collegaTessera() {
     const codice = document.getElementById('campo-codice-tessera').value.trim();
-    if (!codice) return;
+    const password = document.getElementById('campo-password-tessera').value;
     const msgEl = document.getElementById('tessera-msg');
     msgEl.className = 'msg';
+
+    if (!codice) return;
+    if (password !== 'tds12345') {
+      msgEl.textContent = 'Password errata. Il collegamento della tessera va autorizzato dal personale.';
+      msgEl.className = 'msg show error';
+      return;
+    }
 
     try {
       const { data, error } = await sbClient.rpc('collega_tessera_prepagata', { codice_input: codice });
