@@ -444,7 +444,7 @@
   </div>
 </div>
 
-<div style="position:fixed; bottom:4px; right:6px; font-size:10px; color:#b2a878; z-index:1;">v2026-08-03-a (prepagato parziale)</div>
+<div style="position:fixed; bottom:4px; right:6px; font-size:10px; color:#b2a878; z-index:1;">v2026-08-03-b (fix race condition prepagato)</div>
 
 <!-- ============ MODAL NOTIFICA GESTORE ============ -->
 <div class="modal-backdrop" id="modal-notifica">
@@ -1335,7 +1335,7 @@
       const { data: ordine, error: errOrdine } = await sbClient.from('ordini').insert({
         tenant_id: TENANT_ID,
         cliente_id: clienteCorrente.id,
-        stato: 'nuovo',
+        stato: 'in_creazione', // diventa "nuovo" (visibile allo spooler) solo a fine preparazione
         totale,
         note: document.getElementById('campo-note').value.trim(),
         data_ritiro: dataRitiro,
@@ -1366,6 +1366,11 @@
           aggiornaBadgeSaldoHeader();
         }
       }
+
+      // Ultimo passo: ora che tutto (righe + eventuale pagamento prepagato) è a posto,
+      // rendiamo l'ordine visibile allo spooler impostando lo stato definitivo.
+      const { error: errAttiva } = await sbClient.from('ordini').update({ stato: 'nuovo' }).eq('id', ordine.id);
+      if (errAttiva) throw errAttiva;
 
       const avvisoEl = document.getElementById('conferma-avviso');
       if (avvisoPagamento) {
