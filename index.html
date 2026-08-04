@@ -619,6 +619,7 @@
       </label>
 
       <label style="margin-top:20px;">Variazioni applicabili a questo prodotto</label>
+      <input type="text" id="cerca-variazioni-prodotto" placeholder="🔍 Cerca una variazione (es. cotto)..." style="margin-bottom:8px;">
       <div id="prodotto-variazioni-checklist" style="background:var(--panel-2); border:1px solid var(--border); border-radius:8px; padding:12px; max-height:160px; overflow-y:auto;">
         <div class="empty-state" style="padding:10px;">Nessun gruppo di variazione creato. Vai nella tab "Variazioni" per crearne uno.</div>
       </div>
@@ -1098,27 +1099,52 @@
     }).join('');
   }
 
+  let selezioneVariazioniCorrente = new Set();
+
   function renderChecklistVariazioniProdotto(opzioniSelezionate) {
+    selezioneVariazioniCorrente = new Set(opzioniSelezionate);
+    document.getElementById('cerca-variazioni-prodotto').value = '';
+    disegnaChecklistVariazioni();
+  }
+
+  function disegnaChecklistVariazioni() {
     const cont = document.getElementById('prodotto-variazioni-checklist');
     if (!variazioniCache.length) {
       cont.innerHTML = '<div class="empty-state" style="padding:10px;">Nessun gruppo di variazione creato. Vai nella tab "Variazioni" per crearne uno.</div>';
       return;
     }
-    cont.innerHTML = variazioniCache.map(v => {
+    const query = document.getElementById('cerca-variazioni-prodotto').value.trim().toLowerCase();
+
+    const html = variazioniCache.map(v => {
       const opzioni = v.opzioni_variazione || [];
+      const opzioniFiltrate = query ? opzioni.filter(o => o.nome.toLowerCase().includes(query)) : opzioni;
+
+      if (query && !opzioniFiltrate.length) return ''; // gruppo senza risultati: lo nascondo del tutto durante la ricerca
+
       return `
         <div style="margin-bottom:14px;">
           <div style="font-weight:600; font-size:13px; margin-bottom:6px;">${escapeHtml(v.nome_gruppo)} ${v.obbligatorio ? '<span class="badge">Obbligatorio</span>' : ''}</div>
-          ${opzioni.length ? opzioni.map(o => `
+          ${opzioniFiltrate.length ? opzioniFiltrate.map(o => `
             <label style="display:flex; align-items:center; gap:8px; margin-top:6px; padding-left:10px;">
-              <input type="checkbox" class="chk-opzione-prodotto" value="${o.id}" style="width:auto;" ${opzioniSelezionate.includes(o.id) ? 'checked' : ''}>
+              <input type="checkbox" class="chk-opzione-prodotto" value="${o.id}" style="width:auto;" ${selezioneVariazioniCorrente.has(o.id) ? 'checked' : ''}>
               ${escapeHtml(o.nome)} ${o.prezzo_aggiuntivo > 0 ? '(+€' + Number(o.prezzo_aggiuntivo).toFixed(2) + ')' : ''}
             </label>
           `).join('') : '<div style="padding-left:10px; font-size:12px; color:var(--ink-dim);">Nessuna opzione in questo gruppo (aggiungile nella tab Variazioni)</div>'}
         </div>
       `;
     }).join('');
+
+    cont.innerHTML = html || '<div class="empty-state" style="padding:10px;">Nessuna variazione trovata per questa ricerca.</div>';
+
+    cont.querySelectorAll('.chk-opzione-prodotto').forEach(chk => {
+      chk.addEventListener('change', () => {
+        if (chk.checked) selezioneVariazioniCorrente.add(chk.value);
+        else selezioneVariazioniCorrente.delete(chk.value);
+      });
+    });
   }
+
+  document.getElementById('cerca-variazioni-prodotto').addEventListener('input', disegnaChecklistVariazioni);
 
   document.getElementById('filtro-categoria-prodotti').addEventListener('change', renderProdotti);
 
@@ -1250,7 +1276,7 @@
       if (error) throw error;
 
       // Sincronizza le opzioni di variazione selezionate (elimina tutte e reinserisce quelle spuntate)
-      const opzioniSelezionate = Array.from(document.querySelectorAll('.chk-opzione-prodotto:checked')).map(el => el.value);
+      const opzioniSelezionate = Array.from(selezioneVariazioniCorrente);
       const { error: errDelete } = await sbClient.from('prodotti_opzioni_variazione').delete().eq('prodotto_id', prodottoId);
       if (errDelete) throw errDelete;
       if (opzioniSelezionate.length) {
