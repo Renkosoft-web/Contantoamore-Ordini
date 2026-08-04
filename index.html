@@ -1161,17 +1161,28 @@
     timerRiconoscimentoDescrizione = setTimeout(trovaVariazioniNellaDescrizione, 500);
   });
 
+  const PAROLE_DA_IGNORARE = new Set(['al','alla','allo','ai','agli','alle','di','del','dello','della','dei','degli','delle','con','e','a','da','in','il','lo','la','i','gli','le','un','una']);
+
+  function paroleSignificative(str) {
+    return normalizzaTesto(str)
+      .split(/[^a-z0-9]+/)
+      .filter(p => p.length >= 2 && !PAROLE_DA_IGNORARE.has(p));
+  }
+
   function trovaVariazioniNellaDescrizione() {
-    const testo = normalizzaTesto(document.getElementById('prodotto-descrizione').value);
+    const paroleDescrizione = new Set(paroleSignificative(document.getElementById('prodotto-descrizione').value));
     const suggerimento = document.getElementById('suggerimento-variazioni-descrizione');
-    if (!testo.trim()) { suggerimento.style.display = 'none'; return; }
+    if (!paroleDescrizione.size) { suggerimento.style.display = 'none'; return; }
 
     const nomiTrovati = [];
     variazioniCache.forEach(v => {
       (v.opzioni_variazione || []).forEach(o => {
-        const nomeOpzione = normalizzaTesto(o.nome);
-        // Evita falsi positivi su nomi troppo corti (es. "e", "di") che darebbero corrispondenze a caso
-        if (nomeOpzione.length >= 3 && testo.includes(nomeOpzione) && !selezioneVariazioniCorrente.has(o.id)) {
+        const paroleOpzione = paroleSignificative(o.nome);
+        // Corrisponde se TUTTE le parole importanti dell'opzione compaiono nella descrizione,
+        // in qualsiasi ordine e ignorando "al/alla/di/con" ecc. — così "olio al peperoncino"
+        // trova anche l'opzione "Olio peperoncino", e "cipolla cotta" trova sia "Cipolla" che "Cipolla cotta".
+        const corrisponde = paroleOpzione.length > 0 && paroleOpzione.every(p => paroleDescrizione.has(p));
+        if (corrisponde && !selezioneVariazioniCorrente.has(o.id)) {
           selezioneVariazioniCorrente.add(o.id);
           nomiTrovati.push(o.nome);
         }
