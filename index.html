@@ -1100,6 +1100,13 @@
     }).join('');
   }
 
+  function normalizzaTesto(str) {
+    return (str || '')
+      .toLowerCase()
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // toglie gli accenti (é->e, à->a, ecc.)
+      .trim();
+  }
+
   let selezioneVariazioniCorrente = new Set();
 
   function renderChecklistVariazioniProdotto(opzioniSelezionate) {
@@ -1115,11 +1122,11 @@
       cont.innerHTML = '<div class="empty-state" style="padding:10px;">Nessun gruppo di variazione creato. Vai nella tab "Variazioni" per crearne uno.</div>';
       return;
     }
-    const query = document.getElementById('cerca-variazioni-prodotto').value.trim().toLowerCase();
+    const query = normalizzaTesto(document.getElementById('cerca-variazioni-prodotto').value);
 
     const html = variazioniCache.map(v => {
       const opzioni = v.opzioni_variazione || [];
-      const opzioniFiltrate = query ? opzioni.filter(o => o.nome.toLowerCase().includes(query)) : opzioni;
+      const opzioniFiltrate = query ? opzioni.filter(o => normalizzaTesto(o.nome).includes(query)) : opzioni;
 
       if (query && !opzioniFiltrate.length) return ''; // gruppo senza risultati: lo nascondo del tutto durante la ricerca
 
@@ -1155,14 +1162,14 @@
   });
 
   function trovaVariazioniNellaDescrizione() {
-    const testo = document.getElementById('prodotto-descrizione').value.toLowerCase();
+    const testo = normalizzaTesto(document.getElementById('prodotto-descrizione').value);
     const suggerimento = document.getElementById('suggerimento-variazioni-descrizione');
     if (!testo.trim()) { suggerimento.style.display = 'none'; return; }
 
     const nomiTrovati = [];
     variazioniCache.forEach(v => {
       (v.opzioni_variazione || []).forEach(o => {
-        const nomeOpzione = o.nome.toLowerCase().trim();
+        const nomeOpzione = normalizzaTesto(o.nome);
         // Evita falsi positivi su nomi troppo corti (es. "e", "di") che darebbero corrispondenze a caso
         if (nomeOpzione.length >= 3 && testo.includes(nomeOpzione) && !selezioneVariazioniCorrente.has(o.id)) {
           selezioneVariazioniCorrente.add(o.id);
