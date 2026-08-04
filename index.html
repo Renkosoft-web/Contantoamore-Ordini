@@ -1427,7 +1427,9 @@
     { chiave: 'telefono', etichetta: 'Numero di telefono' },
     { chiave: 'ritiro', etichetta: 'Data e ora del ritiro' },
     { chiave: 'prodotto', etichetta: 'Nome prodotto' },
-    { chiave: 'variazione', etichetta: 'Variazioni (es. "SENZA Mozzarella")' }
+    { chiave: 'variazione', etichetta: 'Variazioni (es. "SENZA Mozzarella")' },
+    { chiave: 'totale', etichetta: 'Totale ordine (nel riepilogo prepagato)' },
+    { chiave: 'da_pagare', etichetta: 'DA PAGARE (nel riepilogo prepagato)' }
   ];
 
   const DEFAULT_STAMPA_CONFIG = {
@@ -1436,7 +1438,9 @@
     telefono: { dimensione: 'medio', grassetto: false, corsivo: false },
     ritiro: { dimensione: 'medio', grassetto: false, corsivo: false },
     prodotto: { dimensione: 'grande', grassetto: true, corsivo: false },
-    variazione: { dimensione: 'medio_piccolo', grassetto: true, corsivo: true }
+    variazione: { dimensione: 'medio_piccolo', grassetto: true, corsivo: true },
+    totale: { dimensione: 'medio', grassetto: false, corsivo: false },
+    da_pagare: { dimensione: 'medio_grande', grassetto: true, corsivo: false }
   };
 
   const LIVELLI_DIMENSIONE = [
