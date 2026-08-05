@@ -673,6 +673,9 @@
 <div class="modal-backdrop" id="modal-opzioni">
   <div class="modal">
     <h3>Opzioni — <span id="opzioni-gruppo-nome"></span></h3>
+    <div style="display:flex; justify-content:flex-end; margin-bottom:8px;">
+      <button type="button" class="danger" id="btn-elimina-tutte-opzioni" style="font-size:12px; padding:6px 12px;">🗑 Elimina tutte le opzioni</button>
+    </div>
     <div id="lista-opzioni"></div>
 
     <div class="var-group" style="border-style:dashed;">
@@ -1579,7 +1582,18 @@
       const primoFoglio = cartella.Sheets[cartella.SheetNames[0]];
       const righe = XLSX.utils.sheet_to_json(primoFoglio, { header: 1 }); // array di array, niente intestazione richiesta
 
+      // Carico le opzioni già esistenti in questo gruppo, per riconoscere i doppioni
+      // (confronto senza distinguere maiuscole/minuscole e accenti, come nella ricerca variazioni)
+      const { data: esistenti, error: errEsistenti } = await sbClient
+        .from('opzioni_variazione').select('id, nome, prezzo_aggiuntivo')
+        .eq('variazione_id', currentVariazioneIdOpzioni);
+      if (errEsistenti) throw errEsistenti;
+
+      const mappaEsistenti = new Map();
+      (esistenti || []).forEach(o => mappaEsistenti.set(normalizzaTesto(o.nome), o));
+
       const nuoveOpzioni = [];
+      const daAggiornare = [];
       for (const riga of righe) {
         const nome = (riga[0] || '').toString().trim();
         if (!nome) continue; // riga vuota o senza nome: la salto
@@ -1587,20 +1601,37 @@
         const prezzo = prezzoGrezzo !== undefined && prezzoGrezzo !== null && prezzoGrezzo !== ''
           ? parseFloat(String(prezzoGrezzo).replace(',', '.')) || 0
           : 0;
-        nuoveOpzioni.push({ variazione_id: currentVariazioneIdOpzioni, nome, prezzo_aggiuntivo: prezzo });
+
+        const giaEsistente = mappaEsistenti.get(normalizzaTesto(nome));
+        if (giaEsistente) {
+          if (Number(giaEsistente.prezzo_aggiuntivo) !== prezzo) {
+            daAggiornare.push({ id: giaEsistente.id, prezzo_aggiuntivo: prezzo });
+          }
+        } else {
+          nuoveOpzioni.push({ variazione_id: currentVariazioneIdOpzioni, nome, prezzo_aggiuntivo: prezzo });
+        }
       }
 
-      if (!nuoveOpzioni.length) {
-        msgEl.textContent = 'Nessuna riga valida trovata nel file (assicurati che i nomi siano nella colonna A).';
+      if (!nuoveOpzioni.length && !daAggiornare.length) {
+        msgEl.textContent = 'Nessuna riga valida trovata nel file, o sono tutte già presenti identiche.';
         msgEl.classList.add('error');
         e.target.value = '';
         return;
       }
 
-      const { error } = await sbClient.from('opzioni_variazione').insert(nuoveOpzioni);
-      if (error) throw error;
+      if (nuoveOpzioni.length) {
+        const { error } = await sbClient.from('opzioni_variazione').insert(nuoveOpzioni);
+        if (error) throw error;
+      }
+      for (const agg of daAggiornare) {
+        const { error } = await sbClient.from('opzioni_variazione').update({ prezzo_aggiuntivo: agg.prezzo_aggiuntivo }).eq('id', agg.id);
+        if (error) throw error;
+      }
 
-      msgEl.textContent = `✓ Importate ${nuoveOpzioni.length} opzioni con successo.`;
+      const pezzi = [];
+      if (nuoveOpzioni.length) pezzi.push(`${nuoveOpzioni.length} nuove aggiunte`);
+      if (daAggiornare.length) pezzi.push(`${daAggiornare.length} già esistenti aggiornate (prezzo)`);
+      msgEl.textContent = `✓ ${pezzi.join(', ')}.`;
       msgEl.classList.remove('error');
       e.target.value = '';
       await caricaOpzioni();
@@ -1618,6 +1649,14 @@
     await caricaOpzioni();
     await caricaVariazioniGruppi();
   };
+
+  document.getElementById('btn-elimina-tutte-opzioni').addEventListener('click', async () => {
+    if (!confirm('Eliminare TUTTE le opzioni di questo gruppo? Non si può annullare.')) return;
+    const { error } = await sbClient.from('opzioni_variazione').delete().eq('variazione_id', currentVariazioneIdOpzioni);
+    if (error) { alert('Errore: ' + error.message); return; }
+    await caricaOpzioni();
+    await caricaVariazioniGruppi();
+  });
 
   // ================= FORMATTAZIONE SCONTRINO =================
   const ELEMENTI_SCONTRINO = [
