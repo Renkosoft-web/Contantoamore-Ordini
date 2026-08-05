@@ -139,6 +139,9 @@
   .categoria-blocco { margin-bottom: 28px; scroll-margin-top: var(--contenuto-top, 140px); }
   .categoria-titolo { font-size: 20px; font-weight: 800; margin-bottom: 4px; color: var(--verde); font-family: 'Baloo 2', sans-serif; }
   .categoria-desc { font-size: 13px; color: var(--ink-dim); margin-bottom: 14px; }
+  .sottocategoria-blocco { margin-top: 16px; padding-top: 12px; border-top: 1px dashed var(--border); }
+  .sottocategoria-blocco:first-of-type { margin-top: 8px; border-top: none; padding-top: 0; }
+  .sottocategoria-titolo { font-size: 15px; font-weight: 700; margin-bottom: 8px; color: var(--verde); font-family: 'Baloo 2', sans-serif; opacity: 0.85; }
 
   .prodotto-card {
     display: flex;
@@ -444,7 +447,7 @@
   </div>
 </div>
 
-<div style="position:fixed; bottom:4px; right:6px; font-size:10px; color:#b2a878; z-index:1;">v2026-08-04-f (colori personalizzati per categoria)</div>
+<div style="position:fixed; bottom:4px; right:6px; font-size:10px; color:#b2a878; z-index:1;">v2026-08-05-a (sottocategorie: colori e titolo distinti)</div>
 
 <!-- ============ MODAL NOTIFICA GESTORE ============ -->
 <div class="modal-backdrop" id="modal-notifica">
@@ -1032,37 +1035,72 @@
       main.innerHTML = '<div class="empty-state">Il menu non è ancora disponibile.</div>';
       return;
     }
-    main.innerHTML = categorieTopLevel.map(cat => {
-      const idCategorieDaIncludere = [cat.id, ...(figlieDiCategoria[cat.id] || [])];
-      const prodottiCat = prodottiList.filter(p => idCategorieDaIncludere.includes(p.categoria_id));
-      if (!prodottiCat.length) return '';
 
-      const stileSezione = cat.colore_sfondo_sezione ? `background-color:${cat.colore_sfondo_sezione};` : '';
+    const categorieById = {};
+    categorieList.forEach(c => { categorieById[c.id] = c; });
+
+    // Renderizza i prodotti di UNA categoria (padre o figlia), con i SUOI colori propri.
+    // Se e' una sottocategoria (idDiversoDalPadre = true) mostra anche il suo titolo.
+    function renderBloccoProdotti(g, eSottocategoria) {
+      const prodottiG = prodottiList.filter(p => p.categoria_id === g.id);
+      if (!prodottiG.length) return '';
+
+      const stileSezione = g.colore_sfondo_sezione ? `background-color:${g.colore_sfondo_sezione};` : '';
       const stileTitolo = [
+        g.colore_testo_categoria ? `color:${g.colore_testo_categoria};` : '',
+        g.grassetto_titolo_categoria ? 'font-weight:700;' : ''
+      ].join('');
+      const stileProdotto = g.colore_sfondo_prodotto ? `background-color:${g.colore_sfondo_prodotto};` : '';
+      const stileNomeProdotto = [
+        g.colore_testo_prodotto ? `color:${g.colore_testo_prodotto};` : '',
+        g.grassetto_nome_prodotto === false ? 'font-weight:400;' : ''
+      ].join('');
+
+      const prodottiHtml = prodottiG.map(p => `
+        <div class="prodotto-card" style="${stileProdotto}">
+          ${p.immagine_url ? `<img src="${p.immagine_url}" alt="">` : ''}
+          <div class="prodotto-info">
+            <div class="prodotto-nome" style="${stileNomeProdotto}">${escapeHtml(p.nome)}</div>
+            ${p.descrizione ? `<div class="prodotto-desc">${escapeHtml(p.descrizione)}</div>` : ''}
+            <div class="prodotto-prezzo">${formatEuro(p.prezzo_base)}</div>
+          </div>
+          <button class="btn-aggiungi" onclick="apriDettaglioProdotto('${p.id}')">+ Aggiungi</button>
+        </div>
+      `).join('');
+
+      if (eSottocategoria) {
+        return `
+          <div class="sottocategoria-blocco" style="${stileSezione}">
+            <div class="sottocategoria-titolo" style="${stileTitolo}">${escapeHtml(g.nome)}</div>
+            ${g.descrizione ? `<div class="categoria-desc">${escapeHtml(g.descrizione)}</div>` : ''}
+            ${prodottiHtml}
+          </div>
+        `;
+      }
+      // Prodotti diretti della categoria padre: nessun titolo ripetuto (c'e' gia' il titolo della sezione).
+      return `<div style="${stileSezione}">${prodottiHtml}</div>`;
+    }
+
+    main.innerHTML = categorieTopLevel.map(cat => {
+      const idFiglie = figlieDiCategoria[cat.id] || [];
+      const bloccoPadre = renderBloccoProdotti(cat, false);
+      const blocchiFiglie = idFiglie.map(id => categorieById[id]).filter(Boolean)
+        .map(g => renderBloccoProdotti(g, true)).join('');
+
+      if (!bloccoPadre.trim() && !blocchiFiglie.trim()) return '';
+
+      const stileSezionePadre = cat.colore_sfondo_sezione ? `background-color:${cat.colore_sfondo_sezione};` : '';
+      const stileTitoloPadre = [
         cat.colore_testo_categoria ? `color:${cat.colore_testo_categoria};` : '',
         cat.grassetto_titolo_categoria ? 'font-weight:700;' : ''
       ].join('');
-      const stileProdotto = cat.colore_sfondo_prodotto ? `background-color:${cat.colore_sfondo_prodotto};` : '';
-      const stileNomeProdotto = [
-        cat.colore_testo_prodotto ? `color:${cat.colore_testo_prodotto};` : '',
-        cat.grassetto_nome_prodotto === false ? 'font-weight:400;' : ''
-      ].join('');
 
       return `
-        <div class="categoria-blocco" id="cat-${cat.id}" style="${stileSezione}">
-          <div class="categoria-titolo" style="${stileTitolo}">${escapeHtml(cat.nome)}</div>
+        <div class="categoria-blocco" id="cat-${cat.id}" style="${stileSezionePadre}">
+          <div class="categoria-titolo" style="${stileTitoloPadre}">${escapeHtml(cat.nome)}</div>
           ${cat.descrizione ? `<div class="categoria-desc">${escapeHtml(cat.descrizione)}</div>` : ''}
-          ${prodottiCat.map(p => `
-            <div class="prodotto-card" style="${stileProdotto}">
-              ${p.immagine_url ? `<img src="${p.immagine_url}" alt="">` : ''}
-              <div class="prodotto-info">
-                <div class="prodotto-nome" style="${stileNomeProdotto}">${escapeHtml(p.nome)}</div>
-                ${p.descrizione ? `<div class="prodotto-desc">${escapeHtml(p.descrizione)}</div>` : ''}
-                <div class="prodotto-prezzo">${formatEuro(p.prezzo_base)}</div>
-              </div>
-              <button class="btn-aggiungi" onclick="apriDettaglioProdotto('${p.id}')">+ Aggiungi</button>
-            </div>
-          `).join('')}
+          ${bloccoPadre}
+          ${blocchiFiglie}
         </div>
       `;
     }).join('') + renderFooterLocale();
