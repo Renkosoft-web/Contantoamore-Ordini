@@ -444,7 +444,7 @@
   </div>
 </div>
 
-<div style="position:fixed; bottom:4px; right:6px; font-size:10px; color:#b2a878; z-index:1;">v2026-08-03-c (password collegamento tessera)</div>
+<div style="position:fixed; bottom:4px; right:6px; font-size:10px; color:#b2a878; z-index:1;">v2026-08-04-a (tipo gruppo variazione)</div>
 
 <!-- ============ MODAL NOTIFICA GESTORE ============ -->
 <div class="modal-backdrop" id="modal-notifica">
@@ -928,7 +928,7 @@
     categorieList = categorie || [];
 
     const { data: prodotti } = await sbClient
-      .from('prodotti').select('*, prodotti_opzioni_variazione(opzione_variazione_id, opzioni_variazione(id, nome, prezzo_aggiuntivo, variazione_id, variazioni(id, nome_gruppo, obbligatorio, max_scelte)))')
+      .from('prodotti').select('*, prodotti_opzioni_variazione(opzione_variazione_id, opzioni_variazione(id, nome, prezzo_aggiuntivo, variazione_id, variazioni(id, nome_gruppo, obbligatorio, max_scelte, tipo)))')
       .eq('tenant_id', TENANT_ID).eq('attivo', true)
       .order('ordine_visualizzazione');
     prodottiList = prodotti || [];
@@ -1077,11 +1077,25 @@
     } else {
       cont.innerHTML = gruppi.map(g => {
         const isRadio = g.gruppo.max_scelte === 1;
+        const tipo = g.gruppo.tipo || 'aggiunta';
+        const senzaLimite = g.gruppo.max_scelte === 0;
+
+        let testoSuggerimento;
+        if (isRadio) {
+          testoSuggerimento = tipo === 'eliminazione' ? 'elimina 1' : 'scegli 1';
+        } else if (tipo === 'eliminazione') {
+          testoSuggerimento = senzaLimite ? 'elimina tutti gli ingredienti che vuoi' : 'elimina fino a ' + g.gruppo.max_scelte;
+        } else if (tipo === 'aggiunta') {
+          testoSuggerimento = senzaLimite ? 'scegli tutti gli ingredienti che vuoi aggiungere' : 'scegli fino a ' + g.gruppo.max_scelte + ' da aggiungere';
+        } else {
+          testoSuggerimento = senzaLimite ? 'scegli quanti ne vuoi' : 'scegli fino a ' + g.gruppo.max_scelte;
+        }
+
         return `
           <div class="var-gruppo">
             <div class="var-gruppo-titolo">
-              <span>${escapeHtml(g.gruppo.nome_gruppo)} ${g.gruppo.obbligatorio ? '<span class="badge">Obbligatorio</span>' : ''}</span>
-              <span class="hint">${isRadio ? 'scegli 1' : (g.gruppo.max_scelte === 0 ? 'scegli quanti ne vuoi' : 'scegli fino a ' + g.gruppo.max_scelte)}</span>
+              <span>${tipo === 'eliminazione' ? '➖' : tipo === 'aggiunta' ? '➕' : ''} ${escapeHtml(g.gruppo.nome_gruppo)} ${g.gruppo.obbligatorio ? '<span class="badge">Obbligatorio</span>' : ''}</span>
+              <span class="hint">${testoSuggerimento}</span>
             </div>
             ${g.opzioni.map(o => `
               <div class="var-opzione-riga">
