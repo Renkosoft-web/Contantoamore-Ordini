@@ -1161,9 +1161,19 @@
 
       if (query && !opzioniFiltrate.length) return ''; // gruppo senza risultati: lo nascondo del tutto durante la ricerca
 
+      const tutteSelezionate = opzioniFiltrate.length > 0 && opzioniFiltrate.every(o => selezioneVariazioniCorrente.has(o.id));
+
       return `
         <div style="margin-bottom:14px;">
-          <div style="font-weight:600; font-size:13px; margin-bottom:6px;">${escapeHtml(v.nome_gruppo)} ${v.obbligatorio ? '<span class="badge">Obbligatorio</span>' : ''}</div>
+          <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:6px;">
+            <div style="font-weight:600; font-size:13px;">${escapeHtml(v.nome_gruppo)} ${v.obbligatorio ? '<span class="badge">Obbligatorio</span>' : ''}</div>
+            ${opzioniFiltrate.length > 1 ? `
+              <label style="display:flex; align-items:center; gap:4px; font-size:11px; color:var(--ink-dim); cursor:pointer; white-space:nowrap;">
+                <input type="checkbox" class="chk-seleziona-tutto-gruppo" data-gruppo="${v.id}" style="width:auto;" ${tutteSelezionate ? 'checked' : ''}>
+                Seleziona tutti
+              </label>
+            ` : ''}
+          </div>
           ${opzioniFiltrate.length ? opzioniFiltrate.map(o => `
             <label style="display:flex; align-items:center; gap:8px; margin-top:6px; padding-left:10px;">
               <input type="checkbox" class="chk-opzione-prodotto" value="${o.id}" style="width:auto;" ${selezioneVariazioniCorrente.has(o.id) ? 'checked' : ''}>
@@ -1175,6 +1185,22 @@
     }).join('');
 
     cont.innerHTML = html || '<div class="empty-state" style="padding:10px;">Nessuna variazione trovata per questa ricerca.</div>';
+
+    cont.querySelectorAll('.chk-seleziona-tutto-gruppo').forEach(chkTutti => {
+      chkTutti.addEventListener('change', () => {
+        const gruppoId = chkTutti.dataset.gruppo;
+        const gruppo = variazioniCache.find(v => v.id === gruppoId);
+        if (!gruppo) return;
+        const opzioniGruppo = query
+          ? (gruppo.opzioni_variazione || []).filter(o => normalizzaTesto(o.nome).includes(query))
+          : (gruppo.opzioni_variazione || []);
+        opzioniGruppo.forEach(o => {
+          if (chkTutti.checked) selezioneVariazioniCorrente.add(o.id);
+          else selezioneVariazioniCorrente.delete(o.id);
+        });
+        disegnaChecklistVariazioni();
+      });
+    });
 
     cont.querySelectorAll('.chk-opzione-prodotto').forEach(chk => {
       chk.addEventListener('change', () => {
