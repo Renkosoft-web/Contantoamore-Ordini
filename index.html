@@ -1364,6 +1364,14 @@
     document.getElementById('prodotto-attivo').checked = true;
     document.getElementById('prodotto-immagine-preview').classList.remove('show');
     document.getElementById('modal-prodotto-title').textContent = 'Nuovo prodotto';
+
+    // Se sei filtrato su una categoria specifica, il nuovo prodotto parte già con quella
+    // selezionata (altrimenti il campo "reset()" sopra lo riporta sempre alla prima della lista).
+    const categoriaFiltrata = document.getElementById('filtro-categoria-prodotti').value;
+    if (categoriaFiltrata) {
+      document.getElementById('prodotto-categoria').value = categoriaFiltrata;
+    }
+
     document.getElementById('prodotto-ordine').value = calcolaProssimoOrdineProdotto(document.getElementById('prodotto-categoria').value);
     renderChecklistVariazioniProdotto([]);
     clearMsg('prodotto-msg');
