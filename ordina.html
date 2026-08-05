@@ -444,7 +444,7 @@
   </div>
 </div>
 
-<div style="position:fixed; bottom:4px; right:6px; font-size:10px; color:#b2a878; z-index:1;">v2026-08-04-d (fix calibrazione scroll categorie)</div>
+<div style="position:fixed; bottom:4px; right:6px; font-size:10px; color:#b2a878; z-index:1;">v2026-08-04-e (categorie collegate)</div>
 
 <!-- ============ MODAL NOTIFICA GESTORE ============ -->
 <div class="modal-backdrop" id="modal-notifica">
@@ -495,6 +495,8 @@
   let clienteCorrente = null;
   let impostazioni = null;
   let categorieList = [];
+  let categorieTopLevel = [];
+  let figlieDiCategoria = {};
   let prodottiList = [];
   let variazioniPerProdotto = {}; // prodotto_id -> [{variazione, opzioni:[...]}]
   let carrello = []; // {chiave, prodotto_id, nome, prezzoUnitario, quantita, opzioniScelte:[{nome, gruppo, prezzo}]}
@@ -934,6 +936,17 @@
       .order('ordine_visualizzazione');
     categorieList = categorie || [];
 
+    // Le categorie "collegate" ad un'altra non compaiono da sole sulla barra: i loro
+    // prodotti finiscono uniti dentro il blocco della categoria a cui sono collegate.
+    categorieTopLevel = categorieList.filter(c => !c.categoria_collegata_id);
+    figlieDiCategoria = {};
+    categorieList.forEach(c => {
+      if (c.categoria_collegata_id) {
+        if (!figlieDiCategoria[c.categoria_collegata_id]) figlieDiCategoria[c.categoria_collegata_id] = [];
+        figlieDiCategoria[c.categoria_collegata_id].push(c.id);
+      }
+    });
+
     const { data: prodotti } = await sbClient
       .from('prodotti').select('*, prodotti_opzioni_variazione(opzione_variazione_id, opzioni_variazione(id, nome, prezzo_aggiuntivo, variazione_id, variazioni(id, nome_gruppo, obbligatorio, max_scelte, tipo, ordine_visualizzazione)))')
       .eq('tenant_id', TENANT_ID).eq('attivo', true)
@@ -965,7 +978,7 @@
 
   function renderTabsCategorie() {
     const nav = document.getElementById('categorie-tabs');
-    nav.innerHTML = categorieList.map((c, i) => `
+    nav.innerHTML = categorieTopLevel.map((c, i) => `
       <button class="tab-categoria ${i === 0 ? 'active' : ''}" data-cat="${c.id}">${escapeHtml(c.nome)}</button>
     `).join('');
     nav.querySelectorAll('.tab-categoria').forEach(btn => {
@@ -1015,12 +1028,13 @@
 
   function renderMenu() {
     const main = document.getElementById('menu-main');
-    if (!categorieList.length) {
+    if (!categorieTopLevel.length) {
       main.innerHTML = '<div class="empty-state">Il menu non è ancora disponibile.</div>';
       return;
     }
-    main.innerHTML = categorieList.map(cat => {
-      const prodottiCat = prodottiList.filter(p => p.categoria_id === cat.id);
+    main.innerHTML = categorieTopLevel.map(cat => {
+      const idCategorieDaIncludere = [cat.id, ...(figlieDiCategoria[cat.id] || [])];
+      const prodottiCat = prodottiList.filter(p => idCategorieDaIncludere.includes(p.categoria_id));
       if (!prodottiCat.length) return '';
       return `
         <div class="categoria-blocco" id="cat-${cat.id}">
