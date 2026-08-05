@@ -1304,7 +1304,7 @@
     // Ogni ingrediente separato da virgola viene confrontato per intero: "pomodori secchi"
     // trova solo l'opzione "Pomodori secchi", non anche "Pomodori" da sola.
     const segmenti = document.getElementById('prodotto-descrizione').value
-      .split(',')
+      .split(/[,:]/)
       .map(s => chiaveIngrediente(s))
       .filter(k => k.length > 0);
 
