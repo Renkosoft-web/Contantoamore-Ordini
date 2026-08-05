@@ -648,6 +648,13 @@
       <label for="gruppo-nome">Nome gruppo (es. Taglia, Aggiunte)</label>
       <input type="text" id="gruppo-nome" placeholder="Es. Aggiunte" required>
 
+      <label for="gruppo-tipo" style="margin-top:14px;">Tipo di variazione</label>
+      <select id="gruppo-tipo">
+        <option value="aggiunta">In aggiunta (es. "Aggiungi ingredienti")</option>
+        <option value="eliminazione">In eliminazione (es. "Elimina ingredienti")</option>
+        <option value="entrambi">Entrambi (generico)</option>
+      </select>
+
       <div class="row-2" style="margin-top:14px;">
         <div>
           <label style="display:flex; align-items:center; gap:8px; margin-top:0;">
@@ -1445,7 +1452,7 @@
         <div class="item-main">
           <div class="item-info">
             <div class="name">${escapeHtml(v.nome_gruppo)}</div>
-            <div class="meta">${(v.opzioni_variazione || []).length} opzioni · Max scelte: ${v.max_scelte === 0 ? 'Nessun limite' : v.max_scelte} · <span class="badge ${v.obbligatorio ? '' : 'off'}">${v.obbligatorio ? 'Obbligatorio' : 'Opzionale'}</span></div>
+            <div class="meta">${(v.opzioni_variazione || []).length} opzioni · Max scelte: ${v.max_scelte === 0 ? 'Nessun limite' : v.max_scelte} · <span class="badge">${v.tipo === 'eliminazione' ? '➖ Eliminazione' : v.tipo === 'entrambi' ? '↕️ Entrambi' : '➕ Aggiunta'}</span> · <span class="badge ${v.obbligatorio ? '' : 'off'}">${v.obbligatorio ? 'Obbligatorio' : 'Opzionale'}</span></div>
           </div>
         </div>
         <div class="item-actions">
@@ -1461,6 +1468,7 @@
     document.getElementById('form-gruppo-variazione').reset();
     document.getElementById('gruppo-id').value = '';
     document.getElementById('gruppo-max').value = 1;
+    document.getElementById('gruppo-tipo').value = 'aggiunta';
     document.getElementById('modal-gruppo-title').textContent = 'Nuovo gruppo variazione';
     clearMsg('gruppo-msg');
     openModal('modal-gruppo-variazione');
@@ -1473,6 +1481,7 @@
     document.getElementById('gruppo-nome').value = v.nome_gruppo;
     document.getElementById('gruppo-obbligatorio').checked = v.obbligatorio;
     document.getElementById('gruppo-max').value = v.max_scelte;
+    document.getElementById('gruppo-tipo').value = v.tipo || 'aggiunta';
     document.getElementById('modal-gruppo-title').textContent = 'Modifica gruppo variazione';
     clearMsg('gruppo-msg');
     openModal('modal-gruppo-variazione');
@@ -1495,7 +1504,8 @@
       nome_gruppo: document.getElementById('gruppo-nome').value.trim(),
       obbligatorio: document.getElementById('gruppo-obbligatorio').checked,
       min_scelte: 0,
-      max_scelte: (() => { const n = parseInt(document.getElementById('gruppo-max').value); return isNaN(n) ? 1 : n; })()
+      max_scelte: (() => { const n = parseInt(document.getElementById('gruppo-max').value); return isNaN(n) ? 1 : n; })(),
+      tipo: document.getElementById('gruppo-tipo').value
     };
 
     try {
