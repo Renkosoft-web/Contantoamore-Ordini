@@ -703,6 +703,30 @@
         <input type="checkbox" id="prodotto-attivo" checked style="width:auto;"> Prodotto attivo
       </label>
 
+      <label style="display:flex; align-items:center; gap:8px; margin-top:10px;">
+        <input type="checkbox" id="prodotto-novita" style="width:auto;"> 🆕 Novità (mostra badge "NUOVO ARRIVO")
+      </label>
+
+      <div style="margin-top:18px; padding-top:16px; border-top:1px solid var(--border);">
+        <label style="display:flex; align-items:center; gap:8px; margin-top:0; font-weight:600; color:var(--ink);">
+          <input type="checkbox" id="prodotto-personalizza-bottone" style="width:auto;"> Personalizza il colore del bottone "+ Aggiungi"
+        </label>
+        <p style="font-size:12px; color:var(--ink-dim); margin-top:4px;">Se disattivata, il bottone usa il colore generale del sito.</p>
+
+        <div id="blocco-colore-bottone-prodotto" style="display:none; margin-top:10px;">
+          <div class="row-2">
+            <div>
+              <label style="margin-top:0; font-size:12px;">Sfondo bottone</label>
+              <input type="color" id="prodotto-colore-sfondo-bottone" value="#2c7a4b">
+            </div>
+            <div>
+              <label style="margin-top:0; font-size:12px;">Testo bottone</label>
+              <input type="color" id="prodotto-colore-testo-bottone" value="#ffffff">
+            </div>
+          </div>
+        </div>
+      </div>
+
       <label style="margin-top:20px;">Variazioni applicabili a questo prodotto</label>
       <input type="text" id="cerca-variazioni-prodotto" placeholder="🔍 Cerca una variazione (es. cotto)..." style="margin-bottom:8px;">
       <div id="prodotto-variazioni-checklist" style="background:var(--panel-2); border:1px solid var(--border); border-radius:8px; padding:12px; max-height:160px; overflow-y:auto;">
@@ -1472,6 +1496,10 @@
     trovaVariazioniNellaDescrizione();
   });
 
+  document.getElementById('prodotto-personalizza-bottone').addEventListener('change', (e) => {
+    document.getElementById('blocco-colore-bottone-prodotto').style.display = e.target.checked ? 'block' : 'none';
+  });
+
   document.getElementById('btn-nuovo-prodotto').addEventListener('click', () => {
     if (!categorieCache.length) {
       alert('Crea prima almeno una categoria.');
@@ -1480,6 +1508,9 @@
     document.getElementById('form-prodotto').reset();
     document.getElementById('prodotto-id').value = '';
     document.getElementById('prodotto-attivo').checked = true;
+    document.getElementById('prodotto-novita').checked = false;
+    document.getElementById('prodotto-personalizza-bottone').checked = false;
+    document.getElementById('blocco-colore-bottone-prodotto').style.display = 'none';
     document.getElementById('prodotto-immagine-preview').classList.remove('show');
     document.getElementById('modal-prodotto-title').textContent = 'Nuovo prodotto';
 
@@ -1506,6 +1537,12 @@
     document.getElementById('prodotto-prezzo').value = p.prezzo_base;
     document.getElementById('prodotto-ordine').value = p.ordine_visualizzazione;
     document.getElementById('prodotto-attivo').checked = p.attivo;
+    document.getElementById('prodotto-novita').checked = !!p.novita;
+    const haColoreBottone = !!(p.colore_sfondo_bottone || p.colore_testo_bottone);
+    document.getElementById('prodotto-personalizza-bottone').checked = haColoreBottone;
+    document.getElementById('blocco-colore-bottone-prodotto').style.display = haColoreBottone ? 'block' : 'none';
+    document.getElementById('prodotto-colore-sfondo-bottone').value = p.colore_sfondo_bottone || '#2c7a4b';
+    document.getElementById('prodotto-colore-testo-bottone').value = p.colore_testo_bottone || '#ffffff';
     const preview = document.getElementById('prodotto-immagine-preview');
     if (p.immagine_url) { preview.src = p.immagine_url; preview.classList.add('show'); }
     else preview.classList.remove('show');
@@ -1580,6 +1617,9 @@
         prezzo_base: parseFloat(document.getElementById('prodotto-prezzo').value) || 0,
         ordine_visualizzazione: parseInt(document.getElementById('prodotto-ordine').value) || 0,
         attivo: document.getElementById('prodotto-attivo').checked,
+        novita: document.getElementById('prodotto-novita').checked,
+        colore_sfondo_bottone: document.getElementById('prodotto-personalizza-bottone').checked ? document.getElementById('prodotto-colore-sfondo-bottone').value : null,
+        colore_testo_bottone: document.getElementById('prodotto-personalizza-bottone').checked ? document.getElementById('prodotto-colore-testo-bottone').value : null,
         immagine_url: immagineUrl
       };
 
