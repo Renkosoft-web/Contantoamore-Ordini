@@ -444,7 +444,7 @@
   </div>
 </div>
 
-<div style="position:fixed; bottom:4px; right:6px; font-size:10px; color:#b2a878; z-index:1;">v2026-08-04-e (categorie collegate)</div>
+<div style="position:fixed; bottom:4px; right:6px; font-size:10px; color:#b2a878; z-index:1;">v2026-08-04-f (colori personalizzati per categoria)</div>
 
 <!-- ============ MODAL NOTIFICA GESTORE ============ -->
 <div class="modal-backdrop" id="modal-notifica">
@@ -1036,15 +1036,27 @@
       const idCategorieDaIncludere = [cat.id, ...(figlieDiCategoria[cat.id] || [])];
       const prodottiCat = prodottiList.filter(p => idCategorieDaIncludere.includes(p.categoria_id));
       if (!prodottiCat.length) return '';
+
+      const stileSezione = cat.colore_sfondo_sezione ? `background-color:${cat.colore_sfondo_sezione};` : '';
+      const stileTitolo = [
+        cat.colore_testo_categoria ? `color:${cat.colore_testo_categoria};` : '',
+        cat.grassetto_titolo_categoria ? 'font-weight:700;' : ''
+      ].join('');
+      const stileProdotto = cat.colore_sfondo_prodotto ? `background-color:${cat.colore_sfondo_prodotto};` : '';
+      const stileNomeProdotto = [
+        cat.colore_testo_prodotto ? `color:${cat.colore_testo_prodotto};` : '',
+        cat.grassetto_nome_prodotto === false ? 'font-weight:400;' : ''
+      ].join('');
+
       return `
-        <div class="categoria-blocco" id="cat-${cat.id}">
-          <div class="categoria-titolo">${escapeHtml(cat.nome)}</div>
+        <div class="categoria-blocco" id="cat-${cat.id}" style="${stileSezione}">
+          <div class="categoria-titolo" style="${stileTitolo}">${escapeHtml(cat.nome)}</div>
           ${cat.descrizione ? `<div class="categoria-desc">${escapeHtml(cat.descrizione)}</div>` : ''}
           ${prodottiCat.map(p => `
-            <div class="prodotto-card">
+            <div class="prodotto-card" style="${stileProdotto}">
               ${p.immagine_url ? `<img src="${p.immagine_url}" alt="">` : ''}
               <div class="prodotto-info">
-                <div class="prodotto-nome">${escapeHtml(p.nome)}</div>
+                <div class="prodotto-nome" style="${stileNomeProdotto}">${escapeHtml(p.nome)}</div>
                 ${p.descrizione ? `<div class="prodotto-desc">${escapeHtml(p.descrizione)}</div>` : ''}
                 <div class="prodotto-prezzo">${formatEuro(p.prezzo_base)}</div>
               </div>
