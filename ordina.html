@@ -159,6 +159,11 @@
   .prodotto-desc { font-size: 12px; color: var(--ink-dim); margin-top: 2px; }
   .prodotto-prezzo { font-weight: 700; color: var(--accent); margin-top: 6px; font-size: 14px; }
   .btn-aggiungi { flex-shrink: 0; padding: 10px 16px; font-size: 13px; }
+  .badge-novita {
+    display: inline-block; background: linear-gradient(135deg, #ff7a45, #ff4d4d); color: #fff;
+    font-size: 10px; font-weight: 800; letter-spacing: 0.5px; padding: 3px 8px; border-radius: 20px;
+    margin-bottom: 4px; text-transform: uppercase;
+  }
 
   /* ---- Carrello flottante ---- */
   #carrello-fab {
@@ -447,7 +452,7 @@
   </div>
 </div>
 
-<div style="position:fixed; bottom:4px; right:6px; font-size:10px; color:#b2a878; z-index:1;">v2026-08-05-b (titolo categoria: grandezza, posizione, font)</div>
+<div style="position:fixed; bottom:4px; right:6px; font-size:10px; color:#b2a878; z-index:1;">v2026-08-05-c (colore bottone prodotto + badge novità)</div>
 
 <!-- ============ MODAL NOTIFICA GESTORE ============ -->
 <div class="modal-backdrop" id="modal-notifica">
@@ -1065,17 +1070,25 @@
         g.grassetto_nome_prodotto === false ? 'font-weight:400;' : ''
       ].join('');
 
-      const prodottiHtml = prodottiG.map(p => `
+      const prodottiHtml = prodottiG.map(p => {
+        const stileBottone = [
+          p.colore_sfondo_bottone ? `background-color:${p.colore_sfondo_bottone};` : '',
+          p.colore_sfondo_bottone ? `border-color:${p.colore_sfondo_bottone};` : '',
+          p.colore_testo_bottone ? `color:${p.colore_testo_bottone};` : ''
+        ].join('');
+        return `
         <div class="prodotto-card" style="${stileProdotto}">
           ${p.immagine_url ? `<img src="${p.immagine_url}" alt="">` : ''}
           <div class="prodotto-info">
+            ${p.novita ? `<div class="badge-novita">🆕 Nuovo arrivo</div>` : ''}
             <div class="prodotto-nome" style="${stileNomeProdotto}">${escapeHtml(p.nome)}</div>
             ${p.descrizione ? `<div class="prodotto-desc">${escapeHtml(p.descrizione)}</div>` : ''}
             <div class="prodotto-prezzo">${formatEuro(p.prezzo_base)}</div>
           </div>
-          <button class="btn-aggiungi" onclick="apriDettaglioProdotto('${p.id}')">+ Aggiungi</button>
+          <button class="btn-aggiungi" style="${stileBottone}" onclick="apriDettaglioProdotto('${p.id}')">+ Aggiungi</button>
         </div>
-      `).join('');
+      `;
+      }).join('');
 
       if (eSottocategoria) {
         return `
