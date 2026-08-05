@@ -1081,7 +1081,7 @@
           <div class="var-gruppo">
             <div class="var-gruppo-titolo">
               <span>${escapeHtml(g.gruppo.nome_gruppo)} ${g.gruppo.obbligatorio ? '<span class="badge">Obbligatorio</span>' : ''}</span>
-              <span class="hint">${isRadio ? 'scegli 1' : 'scegli fino a ' + g.gruppo.max_scelte}</span>
+              <span class="hint">${isRadio ? 'scegli 1' : (g.gruppo.max_scelte === 0 ? 'scegli quanti ne vuoi' : 'scegli fino a ' + g.gruppo.max_scelte)}</span>
             </div>
             ${g.opzioni.map(o => `
               <div class="var-opzione-riga">
