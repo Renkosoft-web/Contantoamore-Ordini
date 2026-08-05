@@ -1434,10 +1434,15 @@
     const { data, error } = await sbClient
       .from('variazioni')
       .select('*, opzioni_variazione(id, nome, prezzo_aggiuntivo)')
-      .eq('tenant_id', currentTenantId);
+      .eq('tenant_id', currentTenantId)
+      .order('ordine_visualizzazione', { ascending: true });
 
     if (error) { console.error(error); return; }
     variazioniCache = data || [];
+    // Le opzioni dentro ogni gruppo restano sempre in ordine alfabetico
+    variazioniCache.forEach(v => {
+      (v.opzioni_variazione || []).sort((a, b) => a.nome.localeCompare(b.nome, 'it'));
+    });
     renderGruppiVariazioni();
   }
 
@@ -1448,8 +1453,9 @@
       return;
     }
     cont.innerHTML = variazioniCache.map(v => `
-      <div class="list-item">
+      <div class="list-item" draggable="true" data-id="${v.id}" style="cursor:grab;">
         <div class="item-main">
+          <span style="color:var(--ink-dim); font-size:18px; margin-right:2px; user-select:none;">⠿</span>
           <div class="item-info">
             <div class="name">${escapeHtml(v.nome_gruppo)}</div>
             <div class="meta">${(v.opzioni_variazione || []).length} opzioni · Max scelte: ${v.max_scelte === 0 ? 'Nessun limite' : v.max_scelte} · <span class="badge">${v.tipo === 'eliminazione' ? '➖ Eliminazione' : v.tipo === 'entrambi' ? '↕️ Entrambi' : '➕ Aggiunta'}</span> · <span class="badge ${v.obbligatorio ? '' : 'off'}">${v.obbligatorio ? 'Obbligatorio' : 'Opzionale'}</span></div>
@@ -2530,6 +2536,11 @@
     categorieCache.forEach(c => c.__tabella = 'categorie');
     return categorieCache;
   }, renderCategorie);
+
+  abilitaTrascinamento('lista-gruppi-variazioni', () => {
+    variazioniCache.forEach(v => v.__tabella = 'variazioni');
+    return variazioniCache;
+  }, renderGruppiVariazioni);
 
   // I prodotti si trascinano solo dentro la stessa categoria filtrata: lo spostamento
   // avviene sull'array reale (prodottiCache), così l'ordine resta corretto anche
