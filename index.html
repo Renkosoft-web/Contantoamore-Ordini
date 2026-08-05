@@ -618,6 +618,38 @@
               <input type="checkbox" id="categoria-grassetto-prodotto" checked style="width:auto;"> Grassetto
             </label>
           </div>
+
+          <div class="row-2" style="margin-top:10px;">
+            <div>
+              <label style="margin-top:0; font-size:12px;">Grandezza titolo categoria</label>
+              <select id="categoria-dimensione-titolo">
+                <option value="16">Piccolo</option>
+                <option value="20" selected>Normale</option>
+                <option value="24">Grande</option>
+                <option value="28">Molto grande</option>
+                <option value="34">Enorme</option>
+              </select>
+            </div>
+            <div>
+              <label style="margin-top:0; font-size:12px;">Posizione titolo categoria</label>
+              <select id="categoria-allineamento-titolo">
+                <option value="left" selected>Sinistra</option>
+                <option value="center">Centro</option>
+                <option value="right">Destra</option>
+              </select>
+            </div>
+          </div>
+
+          <div style="margin-top:10px;">
+            <label style="margin-top:0; font-size:12px;">Font titolo categoria</label>
+            <select id="categoria-font-titolo">
+              <option value="'Baloo 2', sans-serif" selected>Arrotondato (Baloo 2)</option>
+              <option value="'Poppins', sans-serif">Moderno (Poppins)</option>
+              <option value="'Playfair Display', serif">Elegante (Playfair Display)</option>
+              <option value="'Pacifico', cursive">Corsivo (Pacifico)</option>
+              <option value="'Oswald', sans-serif">Bold condensato (Oswald)</option>
+            </select>
+          </div>
         </div>
       </div>
 
@@ -1100,6 +1132,9 @@
     document.getElementById('categoria-colore-testo-prodotto').value = cat.colore_testo_prodotto || '#2c2416';
     document.getElementById('categoria-grassetto-titolo').checked = !!cat.grassetto_titolo_categoria;
     document.getElementById('categoria-grassetto-prodotto').checked = cat.grassetto_nome_prodotto !== false;
+    document.getElementById('categoria-dimensione-titolo').value = cat.dimensione_titolo_categoria || 20;
+    document.getElementById('categoria-allineamento-titolo').value = cat.allineamento_titolo_categoria || 'left';
+    document.getElementById('categoria-font-titolo').value = cat.font_titolo_categoria || "'Baloo 2', sans-serif";
 
     const { data: collegamenti } = await sbClient
       .from('categorie_variazioni_ricerca').select('variazione_id').eq('categoria_id', id);
@@ -1165,6 +1200,9 @@
         colore_testo_prodotto: document.getElementById('categoria-personalizza-colori').checked ? document.getElementById('categoria-colore-testo-prodotto').value : null,
         grassetto_titolo_categoria: document.getElementById('categoria-personalizza-colori').checked ? document.getElementById('categoria-grassetto-titolo').checked : false,
         grassetto_nome_prodotto: document.getElementById('categoria-personalizza-colori').checked ? document.getElementById('categoria-grassetto-prodotto').checked : true,
+        dimensione_titolo_categoria: document.getElementById('categoria-personalizza-colori').checked ? (parseInt(document.getElementById('categoria-dimensione-titolo').value) || 20) : null,
+        allineamento_titolo_categoria: document.getElementById('categoria-personalizza-colori').checked ? document.getElementById('categoria-allineamento-titolo').value : null,
+        font_titolo_categoria: document.getElementById('categoria-personalizza-colori').checked ? document.getElementById('categoria-font-titolo').value : null,
         immagine_url: immagineUrl
       };
 
