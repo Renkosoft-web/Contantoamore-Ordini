@@ -581,6 +581,46 @@
         <input type="checkbox" id="categoria-attivo" checked style="width:auto;"> Categoria attiva
       </label>
 
+      <div style="margin-top:18px; padding-top:16px; border-top:1px solid var(--border);">
+        <label style="display:flex; align-items:center; gap:8px; margin-top:0; font-weight:600; color:var(--ink);">
+          <input type="checkbox" id="categoria-personalizza-colori" style="width:auto;"> Personalizza l'aspetto grafico di questa categoria
+        </label>
+        <p style="font-size:12px; color:var(--ink-dim); margin-top:4px;">Se disattivata, questa categoria usa i colori generali del sito.</p>
+
+        <div id="blocco-colori-categoria" style="display:none; margin-top:10px;">
+          <div class="row-2">
+            <div>
+              <label style="margin-top:0; font-size:12px;">Sfondo della sezione</label>
+              <input type="color" id="categoria-colore-sfondo-sezione" value="#f5efd8">
+            </div>
+            <div>
+              <label style="margin-top:0; font-size:12px;">Sfondo dei prodotti</label>
+              <input type="color" id="categoria-colore-sfondo-prodotto" value="#fffdf5">
+            </div>
+          </div>
+
+          <div class="row-2" style="margin-top:10px;">
+            <div>
+              <label style="margin-top:0; font-size:12px;">Colore titolo categoria</label>
+              <input type="color" id="categoria-colore-testo-categoria" value="#2c2416">
+            </div>
+            <label style="display:flex; align-items:center; gap:6px; margin-top:22px;">
+              <input type="checkbox" id="categoria-grassetto-titolo" style="width:auto;"> Grassetto
+            </label>
+          </div>
+
+          <div class="row-2" style="margin-top:10px;">
+            <div>
+              <label style="margin-top:0; font-size:12px;">Colore nome prodotto</label>
+              <input type="color" id="categoria-colore-testo-prodotto" value="#2c2416">
+            </div>
+            <label style="display:flex; align-items:center; gap:6px; margin-top:22px;">
+              <input type="checkbox" id="categoria-grassetto-prodotto" checked style="width:auto;"> Grassetto
+            </label>
+          </div>
+        </div>
+      </div>
+
       <label style="margin-top:16px;">Gruppi variazione da usare per il riconoscimento automatico ingredienti</label>
       <p style="font-size:12px; color:var(--ink-dim); margin-top:-4px;">Quando scrivi la descrizione di un prodotto in questa categoria, verranno cercate solo le variazioni di questi gruppi (evita doppioni tra gruppi non pertinenti).</p>
       <div id="categoria-gruppi-checklist" style="background:var(--panel-2); border:1px solid var(--border); border-radius:8px; padding:12px; max-height:140px; overflow-y:auto;">
@@ -1017,12 +1057,18 @@
     `).join('');
   }
 
+  document.getElementById('categoria-personalizza-colori').addEventListener('change', (e) => {
+    document.getElementById('blocco-colori-categoria').style.display = e.target.checked ? 'block' : 'none';
+  });
+
   document.getElementById('btn-nuova-categoria').addEventListener('click', () => {
     document.getElementById('form-categoria').reset();
     document.getElementById('categoria-id').value = '';
     document.getElementById('categoria-attivo').checked = true;
     document.getElementById('categoria-immagine-preview').classList.remove('show');
     document.getElementById('modal-categoria-title').textContent = 'Nuova categoria';
+    document.getElementById('categoria-personalizza-colori').checked = false;
+    document.getElementById('blocco-colori-categoria').style.display = 'none';
     renderChecklistGruppiCategoria([]);
     clearMsg('categoria-msg');
     openModal('modal-categoria');
@@ -1044,6 +1090,16 @@
 
     popolaSelectCategorie(); // ricostruisce escludendo questa categoria dalla lista "collegata"
     document.getElementById('categoria-collegata').value = cat.categoria_collegata_id || '';
+
+    const haColoriPersonalizzati = !!(cat.colore_sfondo_sezione || cat.colore_sfondo_prodotto || cat.colore_testo_categoria || cat.colore_testo_prodotto);
+    document.getElementById('categoria-personalizza-colori').checked = haColoriPersonalizzati;
+    document.getElementById('blocco-colori-categoria').style.display = haColoriPersonalizzati ? 'block' : 'none';
+    document.getElementById('categoria-colore-sfondo-sezione').value = cat.colore_sfondo_sezione || '#f5efd8';
+    document.getElementById('categoria-colore-sfondo-prodotto').value = cat.colore_sfondo_prodotto || '#fffdf5';
+    document.getElementById('categoria-colore-testo-categoria').value = cat.colore_testo_categoria || '#2c2416';
+    document.getElementById('categoria-colore-testo-prodotto').value = cat.colore_testo_prodotto || '#2c2416';
+    document.getElementById('categoria-grassetto-titolo').checked = !!cat.grassetto_titolo_categoria;
+    document.getElementById('categoria-grassetto-prodotto').checked = cat.grassetto_nome_prodotto !== false;
 
     const { data: collegamenti } = await sbClient
       .from('categorie_variazioni_ricerca').select('variazione_id').eq('categoria_id', id);
@@ -1103,6 +1159,12 @@
         stampante_id: document.getElementById('categoria-stampante').value || null,
         categoria_collegata_id: document.getElementById('categoria-collegata').value || null,
         attivo: document.getElementById('categoria-attivo').checked,
+        colore_sfondo_sezione: document.getElementById('categoria-personalizza-colori').checked ? document.getElementById('categoria-colore-sfondo-sezione').value : null,
+        colore_sfondo_prodotto: document.getElementById('categoria-personalizza-colori').checked ? document.getElementById('categoria-colore-sfondo-prodotto').value : null,
+        colore_testo_categoria: document.getElementById('categoria-personalizza-colori').checked ? document.getElementById('categoria-colore-testo-categoria').value : null,
+        colore_testo_prodotto: document.getElementById('categoria-personalizza-colori').checked ? document.getElementById('categoria-colore-testo-prodotto').value : null,
+        grassetto_titolo_categoria: document.getElementById('categoria-personalizza-colori').checked ? document.getElementById('categoria-grassetto-titolo').checked : false,
+        grassetto_nome_prodotto: document.getElementById('categoria-personalizza-colori').checked ? document.getElementById('categoria-grassetto-prodotto').checked : true,
         immagine_url: immagineUrl
       };
 
