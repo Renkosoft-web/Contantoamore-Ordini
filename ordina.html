@@ -444,7 +444,7 @@
   </div>
 </div>
 
-<div style="position:fixed; bottom:4px; right:6px; font-size:10px; color:#b2a878; z-index:1;">v2026-08-04-a (tipo gruppo variazione)</div>
+<div style="position:fixed; bottom:4px; right:6px; font-size:10px; color:#b2a878; z-index:1;">v2026-08-04-b (ordine gruppi + alfabetico opzioni)</div>
 
 <!-- ============ MODAL NOTIFICA GESTORE ============ -->
 <div class="modal-backdrop" id="modal-notifica">
@@ -928,7 +928,7 @@
     categorieList = categorie || [];
 
     const { data: prodotti } = await sbClient
-      .from('prodotti').select('*, prodotti_opzioni_variazione(opzione_variazione_id, opzioni_variazione(id, nome, prezzo_aggiuntivo, variazione_id, variazioni(id, nome_gruppo, obbligatorio, max_scelte, tipo)))')
+      .from('prodotti').select('*, prodotti_opzioni_variazione(opzione_variazione_id, opzioni_variazione(id, nome, prezzo_aggiuntivo, variazione_id, variazioni(id, nome_gruppo, obbligatorio, max_scelte, tipo, ordine_visualizzazione)))')
       .eq('tenant_id', TENANT_ID).eq('attivo', true)
       .order('ordine_visualizzazione');
     prodottiList = prodotti || [];
@@ -944,7 +944,10 @@
         if (!gruppiMap[g.id]) gruppiMap[g.id] = { gruppo: g, opzioni: [] };
         gruppiMap[g.id].opzioni.push({ id: opz.id, nome: opz.nome, prezzo_aggiuntivo: opz.prezzo_aggiuntivo });
       });
-      variazioniPerProdotto[p.id] = Object.values(gruppiMap);
+      const gruppi = Object.values(gruppiMap);
+      gruppi.sort((a, b) => (a.gruppo.ordine_visualizzazione || 0) - (b.gruppo.ordine_visualizzazione || 0));
+      gruppi.forEach(g => g.opzioni.sort((a, b) => a.nome.localeCompare(b.nome, 'it')));
+      variazioniPerProdotto[p.id] = gruppi;
     });
 
     renderTabsCategorie();
