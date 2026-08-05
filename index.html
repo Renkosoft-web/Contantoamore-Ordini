@@ -575,6 +575,12 @@
         <input type="checkbox" id="categoria-attivo" checked style="width:auto;"> Categoria attiva
       </label>
 
+      <label style="margin-top:16px;">Gruppi variazione da usare per il riconoscimento automatico ingredienti</label>
+      <p style="font-size:12px; color:var(--ink-dim); margin-top:-4px;">Quando scrivi la descrizione di un prodotto in questa categoria, verranno cercate solo le variazioni di questi gruppi (evita doppioni tra gruppi non pertinenti).</p>
+      <div id="categoria-gruppi-checklist" style="background:var(--panel-2); border:1px solid var(--border); border-radius:8px; padding:12px; max-height:140px; overflow-y:auto;">
+        <div class="empty-state" style="padding:6px;">Nessun gruppo variazione creato ancora.</div>
+      </div>
+
       <div class="msg" id="categoria-msg"></div>
       <div class="modal-actions">
         <button type="button" class="secondary" onclick="closeModal('modal-categoria')">Annulla</button>
@@ -925,6 +931,8 @@
   });
 
   // ================= CATEGORIE =================
+  let categoriaGruppiRicercaCache = {};
+
   async function caricaCategorie() {
     const { data, error } = await sbClient
       .from('categorie')
@@ -934,6 +942,14 @@
 
     if (error) { console.error(error); return; }
     categorieCache = data || [];
+
+    const { data: collegamenti } = await sbClient.from('categorie_variazioni_ricerca').select('categoria_id, variazione_id');
+    categoriaGruppiRicercaCache = {};
+    (collegamenti || []).forEach(c => {
+      if (!categoriaGruppiRicercaCache[c.categoria_id]) categoriaGruppiRicercaCache[c.categoria_id] = [];
+      categoriaGruppiRicercaCache[c.categoria_id].push(c.variazione_id);
+    });
+
     renderCategorie();
     popolaSelectCategorie();
   }
@@ -973,17 +989,32 @@
     filtro.value = valorePrecedente;
   }
 
+  function renderChecklistGruppiCategoria(gruppiSelezionati) {
+    const cont = document.getElementById('categoria-gruppi-checklist');
+    if (!variazioniCache.length) {
+      cont.innerHTML = '<div class="empty-state" style="padding:6px;">Nessun gruppo variazione creato ancora.</div>';
+      return;
+    }
+    cont.innerHTML = variazioniCache.map(v => `
+      <label style="display:flex; align-items:center; gap:8px; margin-top:6px;">
+        <input type="checkbox" class="chk-gruppo-categoria" value="${v.id}" style="width:auto;" ${gruppiSelezionati.includes(v.id) ? 'checked' : ''}>
+        ${escapeHtml(v.nome_gruppo)}
+      </label>
+    `).join('');
+  }
+
   document.getElementById('btn-nuova-categoria').addEventListener('click', () => {
     document.getElementById('form-categoria').reset();
     document.getElementById('categoria-id').value = '';
     document.getElementById('categoria-attivo').checked = true;
     document.getElementById('categoria-immagine-preview').classList.remove('show');
     document.getElementById('modal-categoria-title').textContent = 'Nuova categoria';
+    renderChecklistGruppiCategoria([]);
     clearMsg('categoria-msg');
     openModal('modal-categoria');
   });
 
-  window.modificaCategoria = function(id) {
+  window.modificaCategoria = async function(id) {
     const cat = categorieCache.find(c => c.id === id);
     if (!cat) return;
     document.getElementById('categoria-id').value = cat.id;
@@ -996,6 +1027,11 @@
     if (cat.immagine_url) { preview.src = cat.immagine_url; preview.classList.add('show'); }
     else preview.classList.remove('show');
     document.getElementById('modal-categoria-title').textContent = 'Modifica categoria';
+
+    const { data: collegamenti } = await sbClient
+      .from('categorie_variazioni_ricerca').select('variazione_id').eq('categoria_id', id);
+    renderChecklistGruppiCategoria((collegamenti || []).map(c => c.variazione_id));
+
     clearMsg('categoria-msg');
     openModal('modal-categoria');
   };
@@ -1053,12 +1089,25 @@
       };
 
       let error;
+      let categoriaId = id;
       if (id) {
         ({ error } = await sbClient.from('categorie').update(payload).eq('id', id));
       } else {
-        ({ error } = await sbClient.from('categorie').insert(payload));
+        const { data: nuovaCategoria, error: errInsert } = await sbClient.from('categorie').insert(payload).select().single();
+        error = errInsert;
+        if (nuovaCategoria) categoriaId = nuovaCategoria.id;
       }
       if (error) throw error;
+
+      // Aggiorna i collegamenti coi gruppi variazione per la ricerca automatica
+      const gruppiSelezionati = Array.from(document.querySelectorAll('.chk-gruppo-categoria:checked')).map(el => el.value);
+      await sbClient.from('categorie_variazioni_ricerca').delete().eq('categoria_id', categoriaId);
+      if (gruppiSelezionati.length) {
+        await sbClient.from('categorie_variazioni_ricerca').insert(
+          gruppiSelezionati.map(variazioneId => ({ categoria_id: categoriaId, variazione_id: variazioneId }))
+        );
+      }
+
       closeModal('modal-categoria');
       await caricaCategorie();
     } catch (err) {
@@ -1262,8 +1311,17 @@
     const suggerimento = document.getElementById('suggerimento-variazioni-descrizione');
     if (!segmenti.length) { suggerimento.style.display = 'none'; return; }
 
+    // Se la categoria scelta ha dei gruppi variazione specifici collegati, cerco solo lì
+    // (evita di trovare "Cipolla" sia in "Aggiungi ingredienti" che in "Elimina ingredienti").
+    // Se la categoria non ha nessun collegamento configurato, cerco in tutti i gruppi come prima.
+    const categoriaId = document.getElementById('prodotto-categoria').value;
+    const gruppiCollegati = categoriaGruppiRicercaCache[categoriaId];
+    const gruppiDaUsare = (gruppiCollegati && gruppiCollegati.length)
+      ? variazioniCache.filter(v => gruppiCollegati.includes(v.id))
+      : variazioniCache;
+
     const nomiTrovati = [];
-    variazioniCache.forEach(v => {
+    gruppiDaUsare.forEach(v => {
       (v.opzioni_variazione || []).forEach(o => {
         const chiaveOpzione = chiaveIngrediente(o.nome);
         if (chiaveOpzione && segmenti.includes(chiaveOpzione) && !selezioneVariazioniCorrente.has(o.id)) {
@@ -1293,6 +1351,7 @@
     if (inCreazione) {
       document.getElementById('prodotto-ordine').value = calcolaProssimoOrdineProdotto(document.getElementById('prodotto-categoria').value);
     }
+    trovaVariazioniNellaDescrizione();
   });
 
   document.getElementById('btn-nuovo-prodotto').addEventListener('click', () => {
@@ -1545,12 +1604,15 @@
     openModal('modal-opzioni');
   };
 
+  let opzioniGruppoCorrente = [];
+
   async function caricaOpzioni() {
     const { data, error } = await sbClient
       .from('opzioni_variazione')
       .select('*')
       .eq('variazione_id', currentVariazioneIdOpzioni);
 
+    opzioniGruppoCorrente = data || [];
     const cont = document.getElementById('lista-opzioni');
     if (error) { cont.innerHTML = '<div class="empty-state">Errore caricamento.</div>'; return; }
     if (!data || !data.length) {
@@ -1569,6 +1631,12 @@
     const nome = document.getElementById('nuova-opzione-nome').value.trim();
     const prezzo = document.getElementById('nuova-opzione-prezzo').value;
     if (!nome) { showMsg('opzioni-msg', 'Inserisci un nome per l\'opzione.', 'error'); return; }
+
+    const doppione = opzioniGruppoCorrente.find(o => normalizzaTesto(o.nome) === normalizzaTesto(nome));
+    if (doppione) {
+      showMsg('opzioni-msg', `⚠️ Esiste già in questo gruppo: "${doppione.nome}"${doppione.prezzo_aggiuntivo > 0 ? ' (+€' + Number(doppione.prezzo_aggiuntivo).toFixed(2) + ')' : ''}. Non è stata aggiunta.`, 'error');
+      return;
+    }
 
     const { error } = await sbClient.from('opzioni_variazione').insert({
       variazione_id: currentVariazioneIdOpzioni,
