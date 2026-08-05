@@ -571,6 +571,12 @@
         <option value="">Nessuna (non stampa)</option>
       </select>
 
+      <label for="categoria-collegata" style="margin-top:16px;">Categoria collegata (opzionale)</label>
+      <select id="categoria-collegata">
+        <option value="">Nessuna — questa categoria appare da sola sulla barra</option>
+      </select>
+      <p style="font-size:12px; color:var(--ink-dim); margin-top:4px;">Se scelta, questa categoria sparisce dalla barra in alto e i suoi prodotti compaiono uniti dentro quella collegata (es. "Crea il tuo panino" dentro "I nostri Panini").</p>
+
       <label style="display:flex; align-items:center; gap:8px; margin-top:16px;">
         <input type="checkbox" id="categoria-attivo" checked style="width:auto;"> Categoria attiva
       </label>
@@ -960,14 +966,16 @@
       cont.innerHTML = '<div class="empty-state">Nessuna categoria ancora. Creane una per iniziare.</div>';
       return;
     }
-    cont.innerHTML = categorieCache.map(cat => `
+    cont.innerHTML = categorieCache.map(cat => {
+      const collegata = cat.categoria_collegata_id ? categorieCache.find(c => c.id === cat.categoria_collegata_id) : null;
+      return `
       <div class="list-item" draggable="true" data-id="${cat.id}" style="cursor:grab;">
         <div class="item-main">
           <span style="color:var(--ink-dim); font-size:18px; margin-right:2px; user-select:none;">⠿</span>
           ${cat.immagine_url ? `<img src="${cat.immagine_url}" alt="">` : ''}
           <div class="item-info">
             <div class="name">${escapeHtml(cat.nome)}</div>
-            <div class="meta">${cat.descrizione ? escapeHtml(cat.descrizione) + ' · ' : ''}<span class="badge ${cat.attivo ? '' : 'off'}">${cat.attivo ? 'Attiva' : 'Disattiva'}</span></div>
+            <div class="meta">${cat.descrizione ? escapeHtml(cat.descrizione) + ' · ' : ''}<span class="badge ${cat.attivo ? '' : 'off'}">${cat.attivo ? 'Attiva' : 'Disattiva'}</span>${collegata ? ` · <span class="badge">🔗 dentro "${escapeHtml(collegata.nome)}"</span>` : ''}</div>
           </div>
         </div>
         <div class="item-actions">
@@ -975,7 +983,8 @@
           <button class="danger" onclick="eliminaCategoria('${cat.id}')">Elimina</button>
         </div>
       </div>
-    `).join('');
+    `;
+    }).join('');
   }
 
   function popolaSelectCategorie() {
@@ -987,6 +996,11 @@
     filtro.innerHTML = '<option value="">Tutte le categorie</option>' +
       categorieCache.map(c => `<option value="${c.id}">${escapeHtml(c.nome)}</option>`).join('');
     filtro.value = valorePrecedente;
+
+    const selCollegata = document.getElementById('categoria-collegata');
+    const idCorrente = document.getElementById('categoria-id').value;
+    selCollegata.innerHTML = '<option value="">Nessuna — questa categoria appare da sola sulla barra</option>' +
+      categorieCache.filter(c => c.id !== idCorrente).map(c => `<option value="${c.id}">${escapeHtml(c.nome)}</option>`).join('');
   }
 
   function renderChecklistGruppiCategoria(gruppiSelezionati) {
@@ -1027,6 +1041,9 @@
     if (cat.immagine_url) { preview.src = cat.immagine_url; preview.classList.add('show'); }
     else preview.classList.remove('show');
     document.getElementById('modal-categoria-title').textContent = 'Modifica categoria';
+
+    popolaSelectCategorie(); // ricostruisce escludendo questa categoria dalla lista "collegata"
+    document.getElementById('categoria-collegata').value = cat.categoria_collegata_id || '';
 
     const { data: collegamenti } = await sbClient
       .from('categorie_variazioni_ricerca').select('variazione_id').eq('categoria_id', id);
@@ -1084,6 +1101,7 @@
         descrizione: document.getElementById('categoria-descrizione').value.trim(),
         ordine_visualizzazione: parseInt(document.getElementById('categoria-ordine').value) || 0,
         stampante_id: document.getElementById('categoria-stampante').value || null,
+        categoria_collegata_id: document.getElementById('categoria-collegata').value || null,
         attivo: document.getElementById('categoria-attivo').checked,
         immagine_url: immagineUrl
       };
