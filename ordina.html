@@ -444,7 +444,7 @@
   </div>
 </div>
 
-<div style="position:fixed; bottom:4px; right:6px; font-size:10px; color:#b2a878; z-index:1;">v2026-08-04-b (ordine gruppi + alfabetico opzioni)</div>
+<div style="position:fixed; bottom:4px; right:6px; font-size:10px; color:#b2a878; z-index:1;">v2026-08-04-c (ricerca variazioni cliente)</div>
 
 <!-- ============ MODAL NOTIFICA GESTORE ============ -->
 <div class="modal-backdrop" id="modal-notifica">
@@ -522,6 +522,13 @@
       document.body.style.overflow = '';
     }
   }
+  function normalizzaTesto(str) {
+    return (str || '')
+      .toLowerCase()
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      .trim();
+  }
+
   function escapeHtml(str) {
     if (!str) return '';
     return str.replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
@@ -1100,8 +1107,9 @@
               <span>${tipo === 'eliminazione' ? '➖' : tipo === 'aggiunta' ? '➕' : ''} ${escapeHtml(g.gruppo.nome_gruppo)} ${g.gruppo.obbligatorio ? '<span class="badge">Obbligatorio</span>' : ''}</span>
               <span class="hint">${testoSuggerimento}</span>
             </div>
+            ${g.opzioni.length > 10 ? `<input type="text" class="cerca-variazioni-cliente" data-gruppo="${g.gruppo.id}" placeholder="🔍 Cerca..." style="margin-bottom:8px;">` : ''}
             ${g.opzioni.map(o => `
-              <div class="var-opzione-riga">
+              <div class="var-opzione-riga" data-gruppo-riga="${g.gruppo.id}" data-nome-normalizzato="${escapeHtml(normalizzaTesto(o.nome))}">
                 <label>
                   <input type="${isRadio ? 'radio' : 'checkbox'}" name="gruppo-${g.gruppo.id}" class="chk-var-cliente" data-gruppo="${g.gruppo.id}" value="${o.id}">
                   ${escapeHtml(o.nome)}
@@ -1115,6 +1123,17 @@
 
       cont.querySelectorAll('.chk-var-cliente').forEach(el => {
         el.addEventListener('change', aggiornaPrezzoDettaglio);
+      });
+
+      cont.querySelectorAll('.cerca-variazioni-cliente').forEach(campo => {
+        campo.addEventListener('input', () => {
+          const gruppoId = campo.dataset.gruppo;
+          const query = normalizzaTesto(campo.value);
+          cont.querySelectorAll(`.var-opzione-riga[data-gruppo-riga="${gruppoId}"]`).forEach(riga => {
+            const corrisponde = !query || riga.dataset.nomeNormalizzato.includes(query);
+            riga.style.display = corrisponde ? '' : 'none';
+          });
+        });
       });
     }
 
