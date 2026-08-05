@@ -624,6 +624,10 @@
         <div class="empty-state" style="padding:10px;">Nessun gruppo di variazione creato. Vai nella tab "Variazioni" per crearne uno.</div>
       </div>
       <p id="suggerimento-variazioni-descrizione" style="font-size:12px; color:var(--accent); margin-top:6px; display:none;"></p>
+      <div id="riepilogo-variazioni-selezionate" style="margin-top:10px; display:none;">
+        <div style="font-size:12px; color:var(--ink-dim); margin-bottom:6px;">Variazioni selezionate:</div>
+        <div id="riepilogo-variazioni-chips" style="display:flex; flex-wrap:wrap; gap:6px;"></div>
+      </div>
 
       <div class="msg" id="prodotto-msg"></div>
       <div class="modal-actions">
@@ -1116,6 +1120,33 @@
     disegnaChecklistVariazioni();
   }
 
+  function aggiornaRiepilogoVariazioniSelezionate() {
+    const cont = document.getElementById('riepilogo-variazioni-selezionate');
+    const chipsCont = document.getElementById('riepilogo-variazioni-chips');
+
+    const selezionate = [];
+    variazioniCache.forEach(v => {
+      (v.opzioni_variazione || []).forEach(o => {
+        if (selezioneVariazioniCorrente.has(o.id)) selezionate.push({ nome: o.nome, gruppo: v.nome_gruppo, id: o.id });
+      });
+    });
+
+    if (!selezionate.length) { cont.style.display = 'none'; return; }
+
+    cont.style.display = 'block';
+    chipsCont.innerHTML = selezionate.map(s => `
+      <span style="background:var(--accent); color:#1b1f1a; border-radius:14px; padding:4px 10px; font-size:12px; display:flex; align-items:center; gap:6px;">
+        ${escapeHtml(s.nome)}
+        <button type="button" onclick="rimuoviVariazioneSelezionata('${s.id}')" style="background:none; border:none; color:#1b1f1a; font-weight:700; cursor:pointer; padding:0; font-size:14px; line-height:1;">×</button>
+      </span>
+    `).join('');
+  }
+
+  window.rimuoviVariazioneSelezionata = function(id) {
+    selezioneVariazioniCorrente.delete(id);
+    disegnaChecklistVariazioni();
+  };
+
   function disegnaChecklistVariazioni() {
     const cont = document.getElementById('prodotto-variazioni-checklist');
     if (!variazioniCache.length) {
@@ -1149,8 +1180,11 @@
       chk.addEventListener('change', () => {
         if (chk.checked) selezioneVariazioniCorrente.add(chk.value);
         else selezioneVariazioniCorrente.delete(chk.value);
+        aggiornaRiepilogoVariazioniSelezionate();
       });
     });
+
+    aggiornaRiepilogoVariazioniSelezionate();
   }
 
   document.getElementById('cerca-variazioni-prodotto').addEventListener('input', disegnaChecklistVariazioni);
