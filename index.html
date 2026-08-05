@@ -655,8 +655,8 @@
           </label>
         </div>
         <div>
-          <label for="gruppo-max">Scelte massime</label>
-          <input type="number" id="gruppo-max" value="1" min="1">
+          <label for="gruppo-max">Scelte massime (0 = nessun limite)</label>
+          <input type="number" id="gruppo-max" value="1" min="0">
         </div>
       </div>
 
@@ -1445,7 +1445,7 @@
         <div class="item-main">
           <div class="item-info">
             <div class="name">${escapeHtml(v.nome_gruppo)}</div>
-            <div class="meta">${(v.opzioni_variazione || []).length} opzioni · Max scelte: ${v.max_scelte} · <span class="badge ${v.obbligatorio ? '' : 'off'}">${v.obbligatorio ? 'Obbligatorio' : 'Opzionale'}</span></div>
+            <div class="meta">${(v.opzioni_variazione || []).length} opzioni · Max scelte: ${v.max_scelte === 0 ? 'Nessun limite' : v.max_scelte} · <span class="badge ${v.obbligatorio ? '' : 'off'}">${v.obbligatorio ? 'Obbligatorio' : 'Opzionale'}</span></div>
           </div>
         </div>
         <div class="item-actions">
@@ -1495,7 +1495,7 @@
       nome_gruppo: document.getElementById('gruppo-nome').value.trim(),
       obbligatorio: document.getElementById('gruppo-obbligatorio').checked,
       min_scelte: 0,
-      max_scelte: parseInt(document.getElementById('gruppo-max').value) || 1
+      max_scelte: (() => { const n = parseInt(document.getElementById('gruppo-max').value); return isNaN(n) ? 1 : n; })()
     };
 
     try {
