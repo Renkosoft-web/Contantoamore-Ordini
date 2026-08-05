@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <title>Pannello Admin - Gestione Menu</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
   :root {
     --bg: #1b1f1a;
@@ -681,6 +682,13 @@
         <input type="number" placeholder="Prezzo extra €" step="0.01" id="nuova-opzione-prezzo" style="max-width:120px;">
       </div>
       <button type="button" id="btn-aggiungi-opzione" style="margin-top:14px;">+ Aggiungi opzione</button>
+    </div>
+
+    <div class="var-group" style="border-style:dashed; margin-top:10px;">
+      <div class="var-group-title">Importa più opzioni da Excel</div>
+      <p style="font-size:12px; color:var(--ink-dim); margin-top:-4px;">File .xlsx con due colonne: nome variazione nella colonna A, prezzo (facoltativo, es. 0.50) nella colonna B. Niente intestazione necessaria.</p>
+      <input type="file" id="import-opzioni-excel" accept=".xlsx,.xls">
+      <div class="msg" id="import-opzioni-msg"></div>
     </div>
 
     <div class="msg" id="opzioni-msg"></div>
@@ -1511,7 +1519,9 @@
     document.getElementById('opzioni-gruppo-nome').textContent = v ? v.nome_gruppo : '';
     document.getElementById('nuova-opzione-nome').value = '';
     document.getElementById('nuova-opzione-prezzo').value = '';
+    document.getElementById('import-opzioni-excel').value = '';
     clearMsg('opzioni-msg');
+    clearMsg('import-opzioni-msg');
     await caricaOpzioni();
     openModal('modal-opzioni');
   };
@@ -1553,6 +1563,53 @@
     clearMsg('opzioni-msg');
     await caricaOpzioni();
     await caricaVariazioniGruppi();
+  });
+
+  document.getElementById('import-opzioni-excel').addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const msgEl = document.getElementById('import-opzioni-msg');
+    msgEl.className = 'msg';
+    msgEl.textContent = 'Lettura del file in corso...';
+    msgEl.classList.add('show');
+
+    try {
+      const dati = await file.arrayBuffer();
+      const cartella = XLSX.read(dati, { type: 'array' });
+      const primoFoglio = cartella.Sheets[cartella.SheetNames[0]];
+      const righe = XLSX.utils.sheet_to_json(primoFoglio, { header: 1 }); // array di array, niente intestazione richiesta
+
+      const nuoveOpzioni = [];
+      for (const riga of righe) {
+        const nome = (riga[0] || '').toString().trim();
+        if (!nome) continue; // riga vuota o senza nome: la salto
+        const prezzoGrezzo = riga[1];
+        const prezzo = prezzoGrezzo !== undefined && prezzoGrezzo !== null && prezzoGrezzo !== ''
+          ? parseFloat(String(prezzoGrezzo).replace(',', '.')) || 0
+          : 0;
+        nuoveOpzioni.push({ variazione_id: currentVariazioneIdOpzioni, nome, prezzo_aggiuntivo: prezzo });
+      }
+
+      if (!nuoveOpzioni.length) {
+        msgEl.textContent = 'Nessuna riga valida trovata nel file (assicurati che i nomi siano nella colonna A).';
+        msgEl.classList.add('error');
+        e.target.value = '';
+        return;
+      }
+
+      const { error } = await sbClient.from('opzioni_variazione').insert(nuoveOpzioni);
+      if (error) throw error;
+
+      msgEl.textContent = `✓ Importate ${nuoveOpzioni.length} opzioni con successo.`;
+      msgEl.classList.remove('error');
+      e.target.value = '';
+      await caricaOpzioni();
+      await caricaVariazioniGruppi();
+    } catch (err) {
+      msgEl.textContent = 'Errore durante l\'importazione: ' + err.message;
+      msgEl.classList.add('error');
+      e.target.value = '';
+    }
   });
 
   window.eliminaOpzione = async function(id) {
