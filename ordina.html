@@ -467,7 +467,7 @@
   </div>
 </div>
 
-<div style="position:fixed; bottom:4px; right:6px; font-size:10px; color:#b2a878; z-index:1;">v2026-08-05-e (modifica variazioni dal carrello)</div>
+<div style="position:fixed; bottom:4px; right:6px; font-size:10px; color:#b2a878; z-index:1;">v2026-08-05-f (quantità sulle opzioni + modifica gruppi post-carrello)</div>
 
 <!-- ============ MODAL NOTIFICA GESTORE ============ -->
 <div class="modal-backdrop" id="modal-notifica">
@@ -529,7 +529,7 @@
   let selezioniCorrentiDettaglio = {}; // variazioneId -> [opzioneId,...]
   let qtyCorrente = 1;
   let modificaCarrelloChiave = null; // se valorizzata, "Aggiungi al carrello" aggiorna questa riga invece di crearne una nuova
-  let opzioniExtraDaConservareInModifica = []; // opzioni "hai bisogno anche" già scelte in precedenza, da non perdere durante la modifica
+  let gruppiAttiviDettaglio = []; // gruppi variazione attualmente renderizzati nel modal dettaglio (normali, + post-carrello se in modifica)
 
   function showMsg(id, text, type) {
     const el = document.getElementById(id);
@@ -975,7 +975,7 @@
     });
 
     const { data: prodotti } = await sbClient
-      .from('prodotti').select('*, prodotti_opzioni_variazione(opzione_variazione_id, opzioni_variazione(id, nome, prezzo_aggiuntivo, variazione_id, variazioni(id, nome_gruppo, obbligatorio, max_scelte, tipo, ordine_visualizzazione, post_aggiunta_carrello)))')
+      .from('prodotti').select('*, prodotti_opzioni_variazione(opzione_variazione_id, opzioni_variazione(id, nome, prezzo_aggiuntivo, variazione_id, variazioni(id, nome_gruppo, obbligatorio, max_scelte, tipo, ordine_visualizzazione, post_aggiunta_carrello, abilita_quantita)))')
       .eq('tenant_id', TENANT_ID).eq('attivo', true)
       .order('ordine_visualizzazione');
     prodottiList = prodotti || [];
@@ -1168,14 +1168,123 @@
   }
 
   // ================= DETTAGLIO PRODOTTO / VARIAZIONI =================
-  window.apriDettaglioProdotto = function(prodottoId) {
+
+  // Genera il markup di UN gruppo variazione: se il gruppo ha "abilita_quantita" usa un
+  // selettore numerico per opzione, altrimenti la classica checkbox/radio. Usata sia nel
+  // modal dettaglio prodotto sia nel popup "Hai bisogno anche", cosi' il comportamento
+  // (incluso la quantita') e' identico ovunque un gruppo venga proposto.
+  function renderGruppoVariazioneHtml(g) {
+    const isQty = !!g.gruppo.abilita_quantita;
+    const isRadio = !isQty && g.gruppo.max_scelte === 1;
+    const tipo = g.gruppo.tipo || 'aggiunta';
+    const senzaLimite = g.gruppo.max_scelte === 0;
+
+    let testoSuggerimento;
+    if (isQty) {
+      testoSuggerimento = 'scegli la quantità che vuoi per ciascuna opzione';
+    } else if (isRadio) {
+      testoSuggerimento = tipo === 'eliminazione' ? 'elimina 1' : 'scegli 1';
+    } else if (tipo === 'eliminazione') {
+      testoSuggerimento = senzaLimite ? 'elimina tutti gli ingredienti che vuoi' : 'elimina fino a ' + g.gruppo.max_scelte;
+    } else if (tipo === 'aggiunta') {
+      testoSuggerimento = senzaLimite ? 'scegli tutti gli ingredienti che vuoi aggiungere' : 'scegli fino a ' + g.gruppo.max_scelte + ' da aggiungere';
+    } else {
+      testoSuggerimento = senzaLimite ? 'scegli quanti ne vuoi' : 'scegli fino a ' + g.gruppo.max_scelte;
+    }
+
+    return `
+      <div class="var-gruppo">
+        <div class="var-gruppo-titolo">
+          <span>${tipo === 'eliminazione' ? '➖' : tipo === 'aggiunta' ? '➕' : ''} ${escapeHtml(g.gruppo.nome_gruppo)} ${g.gruppo.obbligatorio ? '<span class="badge">Obbligatorio</span>' : ''}</span>
+          <span class="hint">${testoSuggerimento}</span>
+        </div>
+        ${g.opzioni.length > 10 ? `<input type="text" class="cerca-variazioni-cliente" data-gruppo="${g.gruppo.id}" placeholder="🔍 Cerca..." style="margin-bottom:8px;">` : ''}
+        ${g.opzioni.map(o => isQty ? `
+          <div class="var-opzione-riga" data-gruppo-riga="${g.gruppo.id}" data-nome-normalizzato="${escapeHtml(normalizzaTesto(o.nome))}">
+            <label style="flex:1;">${escapeHtml(o.nome)} ${o.prezzo_aggiuntivo > 0 ? `<span class="var-opzione-extra">+${formatEuro(o.prezzo_aggiuntivo)} cad.</span>` : ''}</label>
+            <div class="carrello-riga-azioni" style="margin-top:0;">
+              <button type="button" class="qty-mini-btn btn-qty-opzione" data-gruppo="${g.gruppo.id}" data-opzione="${o.id}" data-delta="-1">−</button>
+              <span class="qty-mini-val val-qty-opzione" data-gruppo="${g.gruppo.id}" data-opzione="${o.id}">0</span>
+              <button type="button" class="qty-mini-btn btn-qty-opzione" data-gruppo="${g.gruppo.id}" data-opzione="${o.id}" data-delta="1">+</button>
+            </div>
+          </div>
+        ` : `
+          <div class="var-opzione-riga" data-gruppo-riga="${g.gruppo.id}" data-nome-normalizzato="${escapeHtml(normalizzaTesto(o.nome))}">
+            <label>
+              <input type="${isRadio ? 'radio' : 'checkbox'}" name="gruppo-${g.gruppo.id}" class="chk-var-cliente" data-gruppo="${g.gruppo.id}" value="${o.id}">
+              ${escapeHtml(o.nome)}
+            </label>
+            ${o.prezzo_aggiuntivo > 0 ? `<span class="var-opzione-extra">+${formatEuro(o.prezzo_aggiuntivo)}</span>` : ''}
+          </div>
+        `).join('')}
+      </div>
+    `;
+  }
+
+  // Collega gli eventi (checkbox/radio, +/- quantità, ricerca) ai gruppi appena renderizzati
+  // dentro un contenitore specifico (il dettaglio prodotto o il popup "Hai bisogno anche").
+  function attivaListenerGruppi(cont, onChange) {
+    cont.querySelectorAll('.chk-var-cliente').forEach(el => {
+      el.addEventListener('change', onChange);
+    });
+    cont.querySelectorAll('.btn-qty-opzione').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const span = cont.querySelector(`.val-qty-opzione[data-gruppo="${btn.dataset.gruppo}"][data-opzione="${btn.dataset.opzione}"]`);
+        if (!span) return;
+        let v = (parseInt(span.textContent) || 0) + parseInt(btn.dataset.delta);
+        if (v < 0) v = 0;
+        span.textContent = v;
+        onChange();
+      });
+    });
+    cont.querySelectorAll('.cerca-variazioni-cliente').forEach(campo => {
+      campo.addEventListener('input', () => {
+        const gruppoId = campo.dataset.gruppo;
+        const query = normalizzaTesto(campo.value);
+        cont.querySelectorAll(`.var-opzione-riga[data-gruppo-riga="${gruppoId}"]`).forEach(riga => {
+          const corrisponde = !query || riga.dataset.nomeNormalizzato.includes(query);
+          riga.style.display = corrisponde ? '' : 'none';
+        });
+      });
+    });
+  }
+
+  // Legge le selezioni correnti (checkbox/radio + quantità) per un insieme di gruppi,
+  // dentro un contenitore specifico. Ritorna il totale extra e l'elenco opzioni scelte.
+  function leggiSelezioniGruppi(cont, gruppi) {
+    let extra = 0;
+    const opzioniScelte = [];
+    gruppi.forEach(g => {
+      if (g.gruppo.abilita_quantita) {
+        g.opzioni.forEach(o => {
+          const span = cont.querySelector(`.val-qty-opzione[data-gruppo="${g.gruppo.id}"][data-opzione="${o.id}"]`);
+          const qty = span ? (parseInt(span.textContent) || 0) : 0;
+          if (qty > 0) {
+            extra += (Number(o.prezzo_aggiuntivo) || 0) * qty;
+            opzioniScelte.push({ gruppo: g.gruppo.nome_gruppo, nome: o.nome, prezzo: Number(o.prezzo_aggiuntivo) || 0, quantita: qty });
+          }
+        });
+      } else {
+        cont.querySelectorAll(`.chk-var-cliente[data-gruppo="${g.gruppo.id}"]:checked`).forEach(el => {
+          const o = g.opzioni.find(x => x.id === el.value);
+          if (o) {
+            extra += Number(o.prezzo_aggiuntivo) || 0;
+            opzioniScelte.push({ gruppo: g.gruppo.nome_gruppo, nome: o.nome, prezzo: Number(o.prezzo_aggiuntivo) || 0 });
+          }
+        });
+      }
+    });
+    return { extra, opzioniScelte };
+  }
+
+  window.apriDettaglioProdotto = function(prodottoId, opts) {
+    opts = opts || {};
     prodottoInDettaglio = prodottiList.find(p => p.id === prodottoId);
     if (!prodottoInDettaglio) return;
 
     // Reset dello stato di modifica: se questa chiamata arriva da un click normale sul menu
     // (non da "Modifica" nel carrello), la funzione modificaRigaCarrello lo re-imposterà dopo.
     modificaCarrelloChiave = null;
-    opzioniExtraDaConservareInModifica = [];
 
     selezioniCorrentiDettaglio = {};
     qtyCorrente = 1;
@@ -1191,61 +1300,19 @@
     }
     clearMsg('dettaglio-msg');
 
-    const gruppi = variazioniPerProdotto[prodottoId] || [];
+    // Nella scelta normale (nuovo prodotto) si vedono solo i gruppi "standard". In modifica
+    // dal carrello (opts.includiPostCarrello) si vedono anche i gruppi "hai bisogno anche",
+    // cosi' si possono cambiare pure quelli senza dover ripassare dal popup post-aggiunta.
+    const gruppiNormali = variazioniPerProdotto[prodottoId] || [];
+    const gruppiPost = gruppiPostCarrelloPerProdotto[prodottoId] || [];
+    gruppiAttiviDettaglio = opts.includiPostCarrello ? gruppiNormali.concat(gruppiPost) : gruppiNormali;
+
     const cont = document.getElementById('dettaglio-variazioni');
-    if (!gruppi.length) {
+    if (!gruppiAttiviDettaglio.length) {
       cont.innerHTML = '';
     } else {
-      cont.innerHTML = gruppi.map(g => {
-        const isRadio = g.gruppo.max_scelte === 1;
-        const tipo = g.gruppo.tipo || 'aggiunta';
-        const senzaLimite = g.gruppo.max_scelte === 0;
-
-        let testoSuggerimento;
-        if (isRadio) {
-          testoSuggerimento = tipo === 'eliminazione' ? 'elimina 1' : 'scegli 1';
-        } else if (tipo === 'eliminazione') {
-          testoSuggerimento = senzaLimite ? 'elimina tutti gli ingredienti che vuoi' : 'elimina fino a ' + g.gruppo.max_scelte;
-        } else if (tipo === 'aggiunta') {
-          testoSuggerimento = senzaLimite ? 'scegli tutti gli ingredienti che vuoi aggiungere' : 'scegli fino a ' + g.gruppo.max_scelte + ' da aggiungere';
-        } else {
-          testoSuggerimento = senzaLimite ? 'scegli quanti ne vuoi' : 'scegli fino a ' + g.gruppo.max_scelte;
-        }
-
-        return `
-          <div class="var-gruppo">
-            <div class="var-gruppo-titolo">
-              <span>${tipo === 'eliminazione' ? '➖' : tipo === 'aggiunta' ? '➕' : ''} ${escapeHtml(g.gruppo.nome_gruppo)} ${g.gruppo.obbligatorio ? '<span class="badge">Obbligatorio</span>' : ''}</span>
-              <span class="hint">${testoSuggerimento}</span>
-            </div>
-            ${g.opzioni.length > 10 ? `<input type="text" class="cerca-variazioni-cliente" data-gruppo="${g.gruppo.id}" placeholder="🔍 Cerca..." style="margin-bottom:8px;">` : ''}
-            ${g.opzioni.map(o => `
-              <div class="var-opzione-riga" data-gruppo-riga="${g.gruppo.id}" data-nome-normalizzato="${escapeHtml(normalizzaTesto(o.nome))}">
-                <label>
-                  <input type="${isRadio ? 'radio' : 'checkbox'}" name="gruppo-${g.gruppo.id}" class="chk-var-cliente" data-gruppo="${g.gruppo.id}" value="${o.id}">
-                  ${escapeHtml(o.nome)}
-                </label>
-                ${o.prezzo_aggiuntivo > 0 ? `<span class="var-opzione-extra">+${formatEuro(o.prezzo_aggiuntivo)}</span>` : ''}
-              </div>
-            `).join('')}
-          </div>
-        `;
-      }).join('');
-
-      cont.querySelectorAll('.chk-var-cliente').forEach(el => {
-        el.addEventListener('change', aggiornaPrezzoDettaglio);
-      });
-
-      cont.querySelectorAll('.cerca-variazioni-cliente').forEach(campo => {
-        campo.addEventListener('input', () => {
-          const gruppoId = campo.dataset.gruppo;
-          const query = normalizzaTesto(campo.value);
-          cont.querySelectorAll(`.var-opzione-riga[data-gruppo-riga="${gruppoId}"]`).forEach(riga => {
-            const corrisponde = !query || riga.dataset.nomeNormalizzato.includes(query);
-            riga.style.display = corrisponde ? '' : 'none';
-          });
-        });
-      });
+      cont.innerHTML = gruppiAttiviDettaglio.map(renderGruppoVariazioneHtml).join('');
+      attivaListenerGruppi(cont, aggiornaPrezzoDettaglio);
     }
 
     aggiornaPrezzoDettaglio();
@@ -1260,25 +1327,12 @@
   });
 
   function calcolaSelezioniETotale() {
-    const gruppi = variazioniPerProdotto[prodottoInDettaglio.id] || [];
-    let extra = 0;
-    const opzioniScelte = [];
-    document.querySelectorAll('.chk-var-cliente:checked').forEach(el => {
-      const gruppoId = el.dataset.gruppo;
-      const g = gruppi.find(x => x.gruppo.id === gruppoId);
-      const o = g ? g.opzioni.find(x => x.id === el.value) : null;
-      if (o) {
-        extra += Number(o.prezzo_aggiuntivo) || 0;
-        opzioniScelte.push({ gruppo: g.gruppo.nome_gruppo, nome: o.nome, prezzo: Number(o.prezzo_aggiuntivo) || 0 });
-      }
-    });
-    return { extra, opzioniScelte };
+    return leggiSelezioniGruppi(document.getElementById('dettaglio-variazioni'), gruppiAttiviDettaglio);
   }
 
   function aggiornaPrezzoDettaglio() {
     const { extra } = calcolaSelezioniETotale();
-    const extraConservato = opzioniExtraDaConservareInModifica.reduce((s, o) => s + (Number(o.prezzo) || 0), 0);
-    const prezzoUnitario = Number(prodottoInDettaglio.prezzo_base) + extra + extraConservato;
+    const prezzoUnitario = Number(prodottoInDettaglio.prezzo_base) + extra;
     const totale = prezzoUnitario * qtyCorrente;
     const etichetta = modificaCarrelloChiave ? 'Salva modifiche' : 'Aggiungi al carrello';
     document.getElementById('btn-conferma-aggiungi').textContent = `${etichetta} — ${formatEuro(totale)}`;
@@ -1286,25 +1340,28 @@
 
   document.getElementById('btn-conferma-aggiungi').addEventListener('click', () => {
     clearMsg('dettaglio-msg');
-    const gruppi = variazioniPerProdotto[prodottoInDettaglio.id] || [];
+    const cont = document.getElementById('dettaglio-variazioni');
 
-    // Validazione gruppi obbligatori
-    for (const g of gruppi) {
-      if (g.gruppo.obbligatorio) {
-        const almenoUno = Array.from(document.querySelectorAll(`.chk-var-cliente[data-gruppo="${g.gruppo.id}"]:checked`)).length > 0;
-        if (!almenoUno) {
-          showMsg('dettaglio-msg', `Devi scegliere un'opzione per "${g.gruppo.nome_gruppo}".`, 'error');
-          return;
-        }
+    // Validazione gruppi obbligatori (checkbox/radio o quantità, a seconda del gruppo)
+    for (const g of gruppiAttiviDettaglio) {
+      if (!g.gruppo.obbligatorio) continue;
+      let soddisfatto;
+      if (g.gruppo.abilita_quantita) {
+        soddisfatto = g.opzioni.some(o => {
+          const span = cont.querySelector(`.val-qty-opzione[data-gruppo="${g.gruppo.id}"][data-opzione="${o.id}"]`);
+          return span && (parseInt(span.textContent) || 0) > 0;
+        });
+      } else {
+        soddisfatto = cont.querySelectorAll(`.chk-var-cliente[data-gruppo="${g.gruppo.id}"]:checked`).length > 0;
+      }
+      if (!soddisfatto) {
+        showMsg('dettaglio-msg', `Devi scegliere un'opzione per "${g.gruppo.nome_gruppo}".`, 'error');
+        return;
       }
     }
 
     const { extra, opzioniScelte } = calcolaSelezioniETotale();
-    // In modifica, ci riattacchiamo le opzioni "hai bisogno anche" scelte in precedenza
-    // (posate, pane...), che qui non hanno checkbox proprie.
-    const opzioniScelteComplete = opzioniScelte.concat(opzioniExtraDaConservareInModifica);
-    const extraTotale = extra + opzioniExtraDaConservareInModifica.reduce((s, o) => s + (Number(o.prezzo) || 0), 0);
-    const prezzoUnitario = Number(prodottoInDettaglio.prezzo_base) + extraTotale;
+    const prezzoUnitario = Number(prodottoInDettaglio.prezzo_base) + extra;
 
     if (modificaCarrelloChiave) {
       const riga = carrello.find(r => r.chiave === modificaCarrelloChiave);
@@ -1312,10 +1369,9 @@
         riga.nome = prodottoInDettaglio.nome;
         riga.prezzoUnitario = prezzoUnitario;
         riga.quantita = qtyCorrente;
-        riga.opzioniScelte = opzioniScelteComplete;
+        riga.opzioniScelte = opzioniScelte;
       }
       modificaCarrelloChiave = null;
-      opzioniExtraDaConservareInModifica = [];
       closeModal('modal-prodotto-dettaglio');
       renderCarrello();
       aggiornaFabCarrello();
@@ -1329,7 +1385,7 @@
       nome: prodottoInDettaglio.nome,
       prezzoUnitario,
       quantita: qtyCorrente,
-      opzioniScelte: opzioniScelteComplete
+      opzioniScelte
     };
 
     const gruppiPost = (gruppiPostCarrelloPerProdotto[prodottoInDettaglio.id] || []).filter(g => g.opzioni.length);
@@ -1349,31 +1405,19 @@
 
   function apriPopupHaiBisognoAnche(gruppiPost) {
     const cont = document.getElementById('hai-bisogno-anche-opzioni');
-    cont.innerHTML = gruppiPost.map(g => `
-      <div class="var-gruppo">
-        <div class="var-gruppo-titolo"><span>${escapeHtml(g.gruppo.nome_gruppo)}</span></div>
-        ${g.opzioni.map(o => `
-          <div class="var-opzione-riga">
-            <label>
-              <input type="checkbox" class="chk-hai-bisogno-anche" data-gruppo="${escapeHtml(g.gruppo.nome_gruppo)}" data-nome="${escapeHtml(o.nome)}" data-prezzo="${o.prezzo_aggiuntivo || 0}">
-              ${escapeHtml(o.nome)}
-            </label>
-            ${o.prezzo_aggiuntivo > 0 ? `<span class="var-opzione-extra">+${formatEuro(o.prezzo_aggiuntivo)}</span>` : ''}
-          </div>
-        `).join('')}
-      </div>
-    `).join('');
+    cont.innerHTML = gruppiPost.map(renderGruppoVariazioneHtml).join('');
+    attivaListenerGruppi(cont, () => {}); // qui non serve aggiornare un prezzo live
     openModal('modal-hai-bisogno-anche');
   }
 
   function chiudiPopupHaiBisognoAnche(aggiungiSelezionate) {
     if (voceCarrelloInSospeso) {
       if (aggiungiSelezionate) {
-        document.querySelectorAll('.chk-hai-bisogno-anche:checked').forEach(el => {
-          const prezzo = Number(el.dataset.prezzo) || 0;
-          voceCarrelloInSospeso.opzioniScelte.push({ gruppo: el.dataset.gruppo, nome: el.dataset.nome, prezzo });
-          voceCarrelloInSospeso.prezzoUnitario += prezzo;
-        });
+        const cont = document.getElementById('hai-bisogno-anche-opzioni');
+        const gruppiPost = (gruppiPostCarrelloPerProdotto[voceCarrelloInSospeso.prodotto_id] || []).filter(g => g.opzioni.length);
+        const { extra, opzioniScelte } = leggiSelezioniGruppi(cont, gruppiPost);
+        voceCarrelloInSospeso.prezzoUnitario += extra;
+        voceCarrelloInSospeso.opzioniScelte = voceCarrelloInSospeso.opzioniScelte.concat(opzioniScelte);
       }
       carrello.push(voceCarrelloInSospeso);
       voceCarrelloInSospeso = null;
@@ -1460,7 +1504,7 @@
         <div class="carrello-riga">
           <div class="carrello-riga-info">
             <div class="carrello-riga-nome">${escapeHtml(r.nome)}</div>
-            ${r.opzioniScelte.length ? `<div class="carrello-riga-tags">${r.opzioniScelte.map(o => escapeHtml(o.gruppo + ' ' + o.nome)).join(' · ')}</div>` : ''}
+            ${r.opzioniScelte.length ? `<div class="carrello-riga-tags">${r.opzioniScelte.map(o => escapeHtml(o.gruppo + ' ' + o.nome + (o.quantita && o.quantita > 1 ? ' x' + o.quantita : ''))).join(' · ')}</div>` : ''}
             <div class="carrello-riga-azioni">
               <button type="button" class="qty-mini-btn" onclick="cambiaQtyCarrello('${r.chiave}', -1)">−</button>
               <span class="qty-mini-val">${r.quantita}</span>
@@ -1493,21 +1537,20 @@
     }
 
     closeModal('modal-carrello');
-    apriDettaglioProdotto(prodotto.id);
+    apriDettaglioProdotto(prodotto.id, { includiPostCarrello: true });
     modificaCarrelloChiave = chiave; // impostato DOPO: apriDettaglioProdotto lo resetta a null all'apertura
 
-    // Le opzioni scelte in precedenza dal popup "Hai bisogno anche" (posate, pane, ecc.) non
-    // hanno una checkbox nella schermata di modifica normale: le mettiamo da parte e le
-    // riattacchiamo automaticamente alla riga quando l'utente conferma, così non si perdono.
-    const nomiGruppiNormali = new Set((variazioniPerProdotto[prodotto.id] || []).map(g => g.gruppo.nome_gruppo));
-    opzioniExtraDaConservareInModifica = riga.opzioniScelte.filter(o => !nomiGruppiNormali.has(o.gruppo));
-
-    // Pre-seleziona le variazioni scelte in precedenza e la quantità già impostata.
+    // Pre-seleziona le variazioni scelte in precedenza (sia i gruppi normali sia quelli
+    // "hai bisogno anche", ora presenti entrambi in gruppiAttiviDettaglio) e la quantità.
     const cont = document.getElementById('dettaglio-variazioni');
-    (variazioniPerProdotto[prodotto.id] || []).forEach(g => {
+    gruppiAttiviDettaglio.forEach(g => {
       g.opzioni.forEach(o => {
-        const eraScelta = riga.opzioniScelte.some(sel => sel.gruppo === g.gruppo.nome_gruppo && sel.nome === o.nome);
-        if (eraScelta) {
+        const scelta = riga.opzioniScelte.find(sel => sel.gruppo === g.gruppo.nome_gruppo && sel.nome === o.nome);
+        if (!scelta) return;
+        if (g.gruppo.abilita_quantita) {
+          const span = cont.querySelector(`.val-qty-opzione[data-gruppo="${g.gruppo.id}"][data-opzione="${o.id}"]`);
+          if (span) span.textContent = scelta.quantita || 1;
+        } else {
           const el = cont.querySelector(`.chk-var-cliente[data-gruppo="${g.gruppo.id}"][value="${o.id}"]`);
           if (el) el.checked = true;
         }
@@ -1521,7 +1564,6 @@
   window.annullaModificaDettaglio = function() {
     const stavamoModificando = !!modificaCarrelloChiave;
     modificaCarrelloChiave = null;
-    opzioniExtraDaConservareInModifica = [];
     closeModal('modal-prodotto-dettaglio');
     if (stavamoModificando) {
       renderCarrello();
