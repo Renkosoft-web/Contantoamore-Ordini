@@ -4,6 +4,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <title>Ordina online</title>
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#33421f">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Contanto Amore">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&family=Poppins:wght@500;700;800&family=Playfair+Display:wght@600;700;800&family=Pacifico&family=Oswald:wght@600;700&display=swap" rel="stylesheet">
@@ -482,7 +488,18 @@
   </div>
 </div>
 
-<div style="position:fixed; bottom:4px; right:6px; font-size:10px; color:#b2a878; z-index:1;">v2026-08-05-l (verifica email, tasto indietro sicuro, carrello persistente)</div>
+<div style="position:fixed; bottom:4px; right:6px; font-size:10px; color:#b2a878; z-index:1;">v2026-08-05-m (popup installa app)</div>
+
+<!-- ============ MODAL INSTALLA APP ============ -->
+<div class="modal-backdrop" id="modal-installa-app">
+  <div class="modal-sheet" style="text-align:center;">
+    <div style="font-size:44px; margin-bottom:10px;">📲</div>
+    <h3 style="margin-bottom:10px;">Installa l'app</h3>
+    <div id="installa-app-contenuto"></div>
+    <button type="button" id="btn-installa-app-conferma" style="width:100%; margin-top:18px;">Installa</button>
+    <button type="button" class="secondary" id="btn-installa-app-dopo" style="width:100%; margin-top:10px;">Non ora</button>
+  </div>
+</div>
 
 <!-- ============ MODAL VERIFICA EMAIL (dopo registrazione) ============ -->
 <div class="modal-backdrop" id="modal-verifica-email">
@@ -603,6 +620,63 @@
     }
   });
   history.pushState({ ancora: true }, '', location.href);
+
+  // ================= INSTALLAZIONE APP (PWA / "Aggiungi a Home") =================
+  let deferredInstallPrompt = null;
+  let menuGiaVisibile = false;
+  let installPromptMostratoQuestaSessione = false;
+
+  function isStandaloneApp() {
+    return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+  }
+  function isIOSDevice() {
+    return /iphone|ipad|ipod/i.test(navigator.userAgent) && !window.MSStream;
+  }
+  function dovremmoProporreInstallazione() {
+    if (isStandaloneApp()) return false; // già installata/aperta come app: non chiedere di nuovo
+    const scorso = localStorage.getItem('pwa_install_dismesso_il');
+    if (scorso && (Date.now() - Number(scorso)) / (1000 * 60 * 60 * 24) < 30) return false; // rifiutata di recente
+    return true;
+  }
+
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferredInstallPrompt = e;
+    provaProponiInstallazione();
+  });
+
+  function provaProponiInstallazione() {
+    if (!menuGiaVisibile || installPromptMostratoQuestaSessione) return;
+    if (!deferredInstallPrompt && !isIOSDevice()) return; // né Android/Chrome con prompt pronto, né iOS: niente da proporre
+    if (!dovremmoProporreInstallazione()) return;
+    installPromptMostratoQuestaSessione = true;
+
+    const cont = document.getElementById('installa-app-contenuto');
+    const btnConferma = document.getElementById('btn-installa-app-conferma');
+    if (isIOSDevice() && !deferredInstallPrompt) {
+      cont.innerHTML = `<p style="color:var(--ink-dim); font-size:14px;">Per installarla sulla schermata Home: tocca il pulsante <strong>Condividi</strong> ⬆️ in basso nel browser, poi scegli <strong>"Aggiungi alla schermata Home"</strong>.</p>`;
+      btnConferma.style.display = 'none';
+    } else {
+      cont.innerHTML = `<p style="color:var(--ink-dim); font-size:14px;">Installa l'app per ordinare più velocemente, con un'icona dedicata sulla schermata Home del telefono.</p>`;
+      btnConferma.style.display = 'block';
+    }
+    openModal('modal-installa-app');
+  }
+
+  document.getElementById('btn-installa-app-conferma').addEventListener('click', async () => {
+    closeModal('modal-installa-app');
+    if (deferredInstallPrompt) {
+      deferredInstallPrompt.prompt();
+      await deferredInstallPrompt.userChoice;
+      deferredInstallPrompt = null;
+    }
+    localStorage.setItem('pwa_install_dismesso_il', String(Date.now()));
+  });
+  document.getElementById('btn-installa-app-dopo').addEventListener('click', () => {
+    closeModal('modal-installa-app');
+    localStorage.setItem('pwa_install_dismesso_il', String(Date.now()));
+  });
+
   function normalizzaTesto(str) {
     return (str || '')
       .toLowerCase()
@@ -984,6 +1058,8 @@
     mostraSchermata('schermata-menu');
     aggiornaBadgeSaldoHeader();
     mostraNotificaGestoreSeAttiva();
+    menuGiaVisibile = true;
+    setTimeout(provaProponiInstallazione, 2500);
 
     // Header e barra categorie sono "fixed" (fuori dal flusso normale). Ora che la
     // schermata menu è finalmente visibile (prima, durante il login, era display:none
