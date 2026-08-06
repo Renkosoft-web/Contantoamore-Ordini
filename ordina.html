@@ -404,6 +404,16 @@
   </div>
 </div>
 
+<!-- ============ MODAL "HAI BISOGNO ANCHE" (post aggiunta carrello) ============ -->
+<div class="modal-backdrop" id="modal-hai-bisogno-anche">
+  <div class="modal-sheet">
+    <h3>Hai bisogno anche di...?</h3>
+    <div id="hai-bisogno-anche-opzioni"></div>
+    <button id="btn-conferma-hai-bisogno-anche" style="width:100%; margin-top:14px;">Aggiungi al carrello</button>
+    <button class="secondary" style="width:100%; margin-top:10px;" id="btn-salta-hai-bisogno-anche">Prosegui senza aggiungere nulla</button>
+  </div>
+</div>
+
 <!-- ============ MODAL CARRELLO ============ -->
 <div class="modal-backdrop" id="modal-carrello">
   <div class="modal-sheet">
@@ -452,7 +462,7 @@
   </div>
 </div>
 
-<div style="position:fixed; bottom:4px; right:6px; font-size:10px; color:#b2a878; z-index:1;">v2026-08-05-c (colore bottone prodotto + badge novità)</div>
+<div style="position:fixed; bottom:4px; right:6px; font-size:10px; color:#b2a878; z-index:1;">v2026-08-05-d (popup "Hai bisogno anche" post-carrello)</div>
 
 <!-- ============ MODAL NOTIFICA GESTORE ============ -->
 <div class="modal-backdrop" id="modal-notifica">
@@ -507,6 +517,8 @@
   let figlieDiCategoria = {};
   let prodottiList = [];
   let variazioniPerProdotto = {}; // prodotto_id -> [{variazione, opzioni:[...]}]
+  let gruppiPostCarrelloPerProdotto = {}; // prodotto_id -> [{gruppo, opzioni:[...]}] mostrati DOPO "Aggiungi al carrello"
+  let voceCarrelloInSospeso = null; // la riga carrello pronta da spingere dopo il popup "Hai bisogno anche"
   let carrello = []; // {chiave, prodotto_id, nome, prezzoUnitario, quantita, opzioniScelte:[{nome, gruppo, prezzo}]}
   let prodottoInDettaglio = null;
   let selezioniCorrentiDettaglio = {}; // variazioneId -> [opzioneId,...]
@@ -956,13 +968,16 @@
     });
 
     const { data: prodotti } = await sbClient
-      .from('prodotti').select('*, prodotti_opzioni_variazione(opzione_variazione_id, opzioni_variazione(id, nome, prezzo_aggiuntivo, variazione_id, variazioni(id, nome_gruppo, obbligatorio, max_scelte, tipo, ordine_visualizzazione)))')
+      .from('prodotti').select('*, prodotti_opzioni_variazione(opzione_variazione_id, opzioni_variazione(id, nome, prezzo_aggiuntivo, variazione_id, variazioni(id, nome_gruppo, obbligatorio, max_scelte, tipo, ordine_visualizzazione, post_aggiunta_carrello)))')
       .eq('tenant_id', TENANT_ID).eq('attivo', true)
       .order('ordine_visualizzazione');
     prodottiList = prodotti || [];
 
-    // Organizza variazioni per prodotto, raggruppate per gruppo variazione
+    // Organizza variazioni per prodotto, raggruppate per gruppo variazione.
+    // I gruppi con post_aggiunta_carrello finiscono in un elenco separato: non si scelgono
+    // nella pagina prodotto, ma vengono proposti subito DOPO aver premuto "Aggiungi al carrello".
     variazioniPerProdotto = {};
+    gruppiPostCarrelloPerProdotto = {};
     prodottiList.forEach(p => {
       const gruppiMap = {};
       (p.prodotti_opzioni_variazione || []).forEach(pv => {
@@ -972,10 +987,11 @@
         if (!gruppiMap[g.id]) gruppiMap[g.id] = { gruppo: g, opzioni: [] };
         gruppiMap[g.id].opzioni.push({ id: opz.id, nome: opz.nome, prezzo_aggiuntivo: opz.prezzo_aggiuntivo });
       });
-      const gruppi = Object.values(gruppiMap);
-      gruppi.sort((a, b) => (a.gruppo.ordine_visualizzazione || 0) - (b.gruppo.ordine_visualizzazione || 0));
-      gruppi.forEach(g => g.opzioni.sort((a, b) => a.nome.localeCompare(b.nome, 'it')));
-      variazioniPerProdotto[p.id] = gruppi;
+      const tuttiGruppi = Object.values(gruppiMap);
+      tuttiGruppi.sort((a, b) => (a.gruppo.ordine_visualizzazione || 0) - (b.gruppo.ordine_visualizzazione || 0));
+      tuttiGruppi.forEach(g => g.opzioni.sort((a, b) => a.nome.localeCompare(b.nome, 'it')));
+      variazioniPerProdotto[p.id] = tuttiGruppi.filter(g => !g.gruppo.post_aggiunta_carrello);
+      gruppiPostCarrelloPerProdotto[p.id] = tuttiGruppi.filter(g => g.gruppo.post_aggiunta_carrello);
     });
 
     renderTabsCategorie();
@@ -1272,18 +1288,67 @@
     const { extra, opzioniScelte } = calcolaSelezioniETotale();
     const prezzoUnitario = Number(prodottoInDettaglio.prezzo_base) + extra;
 
-    carrello.push({
+    const voceCarrello = {
       chiave: Date.now() + '-' + Math.random(),
       prodotto_id: prodottoInDettaglio.id,
       nome: prodottoInDettaglio.nome,
       prezzoUnitario,
       quantita: qtyCorrente,
       opzioniScelte
-    });
+    };
 
-    aggiornaFabCarrello();
+    const gruppiPost = (gruppiPostCarrelloPerProdotto[prodottoInDettaglio.id] || []).filter(g => g.opzioni.length);
     closeModal('modal-prodotto-dettaglio');
+
+    if (!gruppiPost.length) {
+      carrello.push(voceCarrello);
+      aggiornaFabCarrello();
+      return;
+    }
+
+    // Il prodotto ha gruppi "post aggiunta carrello" con opzioni: la riga non va ancora
+    // nel carrello, resta in sospeso finché il cliente non risponde al popup "Hai bisogno anche".
+    voceCarrelloInSospeso = voceCarrello;
+    apriPopupHaiBisognoAnche(gruppiPost);
   });
+
+  function apriPopupHaiBisognoAnche(gruppiPost) {
+    const cont = document.getElementById('hai-bisogno-anche-opzioni');
+    cont.innerHTML = gruppiPost.map(g => `
+      <div class="var-gruppo">
+        <div class="var-gruppo-titolo"><span>${escapeHtml(g.gruppo.nome_gruppo)}</span></div>
+        ${g.opzioni.map(o => `
+          <div class="var-opzione-riga">
+            <label>
+              <input type="checkbox" class="chk-hai-bisogno-anche" data-gruppo="${escapeHtml(g.gruppo.nome_gruppo)}" data-nome="${escapeHtml(o.nome)}" data-prezzo="${o.prezzo_aggiuntivo || 0}">
+              ${escapeHtml(o.nome)}
+            </label>
+            ${o.prezzo_aggiuntivo > 0 ? `<span class="var-opzione-extra">+${formatEuro(o.prezzo_aggiuntivo)}</span>` : ''}
+          </div>
+        `).join('')}
+      </div>
+    `).join('');
+    openModal('modal-hai-bisogno-anche');
+  }
+
+  function chiudiPopupHaiBisognoAnche(aggiungiSelezionate) {
+    if (voceCarrelloInSospeso) {
+      if (aggiungiSelezionate) {
+        document.querySelectorAll('.chk-hai-bisogno-anche:checked').forEach(el => {
+          const prezzo = Number(el.dataset.prezzo) || 0;
+          voceCarrelloInSospeso.opzioniScelte.push({ gruppo: el.dataset.gruppo, nome: el.dataset.nome, prezzo });
+          voceCarrelloInSospeso.prezzoUnitario += prezzo;
+        });
+      }
+      carrello.push(voceCarrelloInSospeso);
+      voceCarrelloInSospeso = null;
+      aggiornaFabCarrello();
+    }
+    closeModal('modal-hai-bisogno-anche');
+  }
+
+  document.getElementById('btn-conferma-hai-bisogno-anche').addEventListener('click', () => chiudiPopupHaiBisognoAnche(true));
+  document.getElementById('btn-salta-hai-bisogno-anche').addEventListener('click', () => chiudiPopupHaiBisognoAnche(false));
 
   // ================= CARRELLO =================
   function totaleCarrello() {
