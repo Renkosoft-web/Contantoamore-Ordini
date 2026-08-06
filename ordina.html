@@ -488,7 +488,7 @@
   </div>
 </div>
 
-<div style="position:fixed; bottom:4px; right:6px; font-size:10px; color:#b2a878; z-index:1;">v2026-08-05-m (popup installa app)</div>
+<div style="position:fixed; bottom:4px; right:6px; font-size:10px; color:#b2a878; z-index:1;">v2026-08-05-n (diagnostica errori: aggiungi al carrello)</div>
 
 <!-- ============ MODAL INSTALLA APP ============ -->
 <div class="modal-backdrop" id="modal-installa-app">
@@ -549,6 +549,15 @@
   const SUPABASE_URL = 'https://kdkjfdbvyxycrfbtifkb.supabase.co';
   const SUPABASE_ANON_KEY = 'sb_publishable_9-LBerMBpUi0huyeNhgNuQ_Npo6VPYF';
   const BUCKET = 'prodotti-immagini';
+
+  // Rete di sicurezza diagnostica: se qualcosa va storto in modo imprevisto (anche fuori
+  // dai blocchi try/catch espliciti), lo mostriamo invece di lasciarlo sparire in silenzio.
+  window.addEventListener('error', (e) => {
+    console.error('Errore JS non gestito:', e.error || e.message);
+  });
+  window.addEventListener('unhandledrejection', (e) => {
+    console.error('Promise non gestita:', e.reason);
+  });
 
   const sbClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true }
@@ -1113,10 +1122,16 @@
       }
     });
 
-    const { data: prodotti } = await sbClient
+    const { data: prodotti, error: erroreProdotti } = await sbClient
       .from('prodotti').select('*, prodotti_opzioni_variazione(opzione_variazione_id, opzioni_variazione(id, nome, prezzo_aggiuntivo, variazione_id, variazioni(id, nome_gruppo, obbligatorio, max_scelte, tipo, ordine_visualizzazione, post_aggiunta_carrello, abilita_quantita)))')
       .eq('tenant_id', TENANT_ID).eq('attivo', true)
       .order('ordine_visualizzazione');
+    if (erroreProdotti) {
+      // Es. colonna mancante nel database (migrazione SQL non eseguita): lo segnaliamo
+      // in chiaro invece di lasciare il menu silenziosamente vuoto o incompleto.
+      console.error('Errore caricando i prodotti:', erroreProdotti);
+      alert('Errore caricando il menu: ' + erroreProdotti.message);
+    }
     prodottiList = prodotti || [];
 
     // Organizza variazioni per prodotto, raggruppate per gruppo variazione.
@@ -1479,6 +1494,7 @@
   }
 
   document.getElementById('btn-conferma-aggiungi').addEventListener('click', () => {
+   try {
     clearMsg('dettaglio-msg');
     const cont = document.getElementById('dettaglio-variazioni');
 
@@ -1496,6 +1512,7 @@
       }
       if (!soddisfatto) {
         showMsg('dettaglio-msg', `Devi scegliere un'opzione per "${g.gruppo.nome_gruppo}".`, 'error');
+        document.getElementById('dettaglio-msg').scrollIntoView({ behavior: 'smooth', block: 'center' });
         return;
       }
     }
@@ -1541,6 +1558,12 @@
     // nel carrello, resta in sospeso finché il cliente non risponde al popup "Hai bisogno anche".
     voceCarrelloInSospeso = voceCarrello;
     apriPopupHaiBisognoAnche(gruppiPost);
+   } catch (err) {
+    // Errore imprevisto: lo mostriamo in chiaro (invece di far sparire tutto in silenzio)
+    // cosi' se capita di nuovo sappiamo esattamente cosa è successo.
+    console.error('Errore in "Aggiungi al carrello":', err);
+    alert('Si è verificato un errore imprevisto: ' + err.message + '\n\nFai uno screenshot di questo messaggio e mandalo per favore.');
+   }
   });
 
   function apriPopupHaiBisognoAnche(gruppiPost) {
