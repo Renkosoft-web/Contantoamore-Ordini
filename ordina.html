@@ -251,6 +251,11 @@
   }
   .qty-mini-btn:hover { background: var(--border); }
   .qty-mini-val { font-size: 13px; font-weight: 600; min-width: 16px; text-align: center; }
+  .btn-modifica-riga {
+    height: 26px; padding: 0 10px; font-size: 12px; border-radius: 13px; margin-left: 4px;
+    background: var(--panel-2); border: 1px solid var(--border); color: var(--ink);
+  }
+  .btn-modifica-riga:hover { background: var(--border); }
 
   .totale-riga {
     display: flex; justify-content: space-between; font-size: 17px; font-weight: 700;
@@ -400,7 +405,7 @@
 
     <div class="msg" id="dettaglio-msg"></div>
     <button id="btn-conferma-aggiungi" style="width:100%;">Aggiungi al carrello — €0.00</button>
-    <button class="secondary" style="width:100%; margin-top:10px;" onclick="closeModal('modal-prodotto-dettaglio')">Annulla</button>
+    <button class="secondary" style="width:100%; margin-top:10px;" onclick="annullaModificaDettaglio()">Annulla</button>
   </div>
 </div>
 
@@ -462,7 +467,7 @@
   </div>
 </div>
 
-<div style="position:fixed; bottom:4px; right:6px; font-size:10px; color:#b2a878; z-index:1;">v2026-08-05-d (popup "Hai bisogno anche" post-carrello)</div>
+<div style="position:fixed; bottom:4px; right:6px; font-size:10px; color:#b2a878; z-index:1;">v2026-08-05-e (modifica variazioni dal carrello)</div>
 
 <!-- ============ MODAL NOTIFICA GESTORE ============ -->
 <div class="modal-backdrop" id="modal-notifica">
@@ -523,6 +528,8 @@
   let prodottoInDettaglio = null;
   let selezioniCorrentiDettaglio = {}; // variazioneId -> [opzioneId,...]
   let qtyCorrente = 1;
+  let modificaCarrelloChiave = null; // se valorizzata, "Aggiungi al carrello" aggiorna questa riga invece di crearne una nuova
+  let opzioniExtraDaConservareInModifica = []; // opzioni "hai bisogno anche" già scelte in precedenza, da non perdere durante la modifica
 
   function showMsg(id, text, type) {
     const el = document.getElementById(id);
@@ -1165,6 +1172,11 @@
     prodottoInDettaglio = prodottiList.find(p => p.id === prodottoId);
     if (!prodottoInDettaglio) return;
 
+    // Reset dello stato di modifica: se questa chiamata arriva da un click normale sul menu
+    // (non da "Modifica" nel carrello), la funzione modificaRigaCarrello lo re-imposterà dopo.
+    modificaCarrelloChiave = null;
+    opzioniExtraDaConservareInModifica = [];
+
     selezioniCorrentiDettaglio = {};
     qtyCorrente = 1;
     document.getElementById('dettaglio-qty').textContent = '1';
@@ -1265,9 +1277,11 @@
 
   function aggiornaPrezzoDettaglio() {
     const { extra } = calcolaSelezioniETotale();
-    const prezzoUnitario = Number(prodottoInDettaglio.prezzo_base) + extra;
+    const extraConservato = opzioniExtraDaConservareInModifica.reduce((s, o) => s + (Number(o.prezzo) || 0), 0);
+    const prezzoUnitario = Number(prodottoInDettaglio.prezzo_base) + extra + extraConservato;
     const totale = prezzoUnitario * qtyCorrente;
-    document.getElementById('btn-conferma-aggiungi').textContent = `Aggiungi al carrello — ${formatEuro(totale)}`;
+    const etichetta = modificaCarrelloChiave ? 'Salva modifiche' : 'Aggiungi al carrello';
+    document.getElementById('btn-conferma-aggiungi').textContent = `${etichetta} — ${formatEuro(totale)}`;
   }
 
   document.getElementById('btn-conferma-aggiungi').addEventListener('click', () => {
@@ -1286,7 +1300,28 @@
     }
 
     const { extra, opzioniScelte } = calcolaSelezioniETotale();
-    const prezzoUnitario = Number(prodottoInDettaglio.prezzo_base) + extra;
+    // In modifica, ci riattacchiamo le opzioni "hai bisogno anche" scelte in precedenza
+    // (posate, pane...), che qui non hanno checkbox proprie.
+    const opzioniScelteComplete = opzioniScelte.concat(opzioniExtraDaConservareInModifica);
+    const extraTotale = extra + opzioniExtraDaConservareInModifica.reduce((s, o) => s + (Number(o.prezzo) || 0), 0);
+    const prezzoUnitario = Number(prodottoInDettaglio.prezzo_base) + extraTotale;
+
+    if (modificaCarrelloChiave) {
+      const riga = carrello.find(r => r.chiave === modificaCarrelloChiave);
+      if (riga) {
+        riga.nome = prodottoInDettaglio.nome;
+        riga.prezzoUnitario = prezzoUnitario;
+        riga.quantita = qtyCorrente;
+        riga.opzioniScelte = opzioniScelteComplete;
+      }
+      modificaCarrelloChiave = null;
+      opzioniExtraDaConservareInModifica = [];
+      closeModal('modal-prodotto-dettaglio');
+      renderCarrello();
+      aggiornaFabCarrello();
+      openModal('modal-carrello');
+      return;
+    }
 
     const voceCarrello = {
       chiave: Date.now() + '-' + Math.random(),
@@ -1294,7 +1329,7 @@
       nome: prodottoInDettaglio.nome,
       prezzoUnitario,
       quantita: qtyCorrente,
-      opzioniScelte
+      opzioniScelte: opzioniScelteComplete
     };
 
     const gruppiPost = (gruppiPostCarrelloPerProdotto[prodottoInDettaglio.id] || []).filter(g => g.opzioni.length);
@@ -1419,7 +1454,9 @@
     if (!carrello.length) {
       cont.innerHTML = '<div class="empty-state">Il carrello è vuoto.</div>';
     } else {
-      cont.innerHTML = carrello.map(r => `
+      cont.innerHTML = carrello.map(r => {
+        const haVariazioniModificabili = (variazioniPerProdotto[r.prodotto_id] || []).length || (gruppiPostCarrelloPerProdotto[r.prodotto_id] || []).some(g => g.opzioni.length);
+        return `
         <div class="carrello-riga">
           <div class="carrello-riga-info">
             <div class="carrello-riga-nome">${escapeHtml(r.nome)}</div>
@@ -1428,11 +1465,13 @@
               <button type="button" class="qty-mini-btn" onclick="cambiaQtyCarrello('${r.chiave}', -1)">−</button>
               <span class="qty-mini-val">${r.quantita}</span>
               <button type="button" class="qty-mini-btn" onclick="cambiaQtyCarrello('${r.chiave}', 1)">+</button>
+              ${haVariazioniModificabili ? `<button type="button" class="btn-modifica-riga" onclick="modificaRigaCarrello('${r.chiave}')">✏️ Modifica</button>` : ''}
             </div>
           </div>
           <div class="carrello-riga-prezzo">${formatEuro(r.prezzoUnitario * r.quantita)}</div>
         </div>
-      `).join('');
+      `;
+      }).join('');
     }
     document.getElementById('carrello-totale').textContent = formatEuro(totaleCarrello());
   }
@@ -1442,6 +1481,52 @@
     renderCarrello();
     aggiornaFabCarrello();
     if (!carrello.length) closeModal('modal-carrello');
+  };
+
+  window.modificaRigaCarrello = function(chiave) {
+    const riga = carrello.find(r => r.chiave === chiave);
+    if (!riga) return;
+    const prodotto = prodottiList.find(p => p.id === riga.prodotto_id);
+    if (!prodotto) {
+      alert('Questo prodotto non è più disponibile nel menu, quindi non può essere modificato. Puoi rimuoverlo e sceglierne un altro.');
+      return;
+    }
+
+    closeModal('modal-carrello');
+    apriDettaglioProdotto(prodotto.id);
+    modificaCarrelloChiave = chiave; // impostato DOPO: apriDettaglioProdotto lo resetta a null all'apertura
+
+    // Le opzioni scelte in precedenza dal popup "Hai bisogno anche" (posate, pane, ecc.) non
+    // hanno una checkbox nella schermata di modifica normale: le mettiamo da parte e le
+    // riattacchiamo automaticamente alla riga quando l'utente conferma, così non si perdono.
+    const nomiGruppiNormali = new Set((variazioniPerProdotto[prodotto.id] || []).map(g => g.gruppo.nome_gruppo));
+    opzioniExtraDaConservareInModifica = riga.opzioniScelte.filter(o => !nomiGruppiNormali.has(o.gruppo));
+
+    // Pre-seleziona le variazioni scelte in precedenza e la quantità già impostata.
+    const cont = document.getElementById('dettaglio-variazioni');
+    (variazioniPerProdotto[prodotto.id] || []).forEach(g => {
+      g.opzioni.forEach(o => {
+        const eraScelta = riga.opzioniScelte.some(sel => sel.gruppo === g.gruppo.nome_gruppo && sel.nome === o.nome);
+        if (eraScelta) {
+          const el = cont.querySelector(`.chk-var-cliente[data-gruppo="${g.gruppo.id}"][value="${o.id}"]`);
+          if (el) el.checked = true;
+        }
+      });
+    });
+    qtyCorrente = riga.quantita;
+    document.getElementById('dettaglio-qty').textContent = qtyCorrente;
+    aggiornaPrezzoDettaglio();
+  };
+
+  window.annullaModificaDettaglio = function() {
+    const stavamoModificando = !!modificaCarrelloChiave;
+    modificaCarrelloChiave = null;
+    opzioniExtraDaConservareInModifica = [];
+    closeModal('modal-prodotto-dettaglio');
+    if (stavamoModificando) {
+      renderCarrello();
+      openModal('modal-carrello');
+    }
   };
 
   window.cambiaQtyCarrello = function(chiave, delta) {
