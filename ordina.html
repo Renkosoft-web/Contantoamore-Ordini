@@ -475,7 +475,7 @@
   </div>
 </div>
 
-<div style="position:fixed; bottom:4px; right:6px; font-size:10px; color:#b2a878; z-index:1;">v2026-08-05-i (nome locale nascosto, cta carrello più chiara, icona carrello header)</div>
+<div style="position:fixed; bottom:4px; right:6px; font-size:10px; color:#b2a878; z-index:1;">v2026-08-05-j (sfondo attenuato per far risaltare i prodotti)</div>
 
 <!-- ============ MODAL NOTIFICA GESTORE ============ -->
 <div class="modal-backdrop" id="modal-notifica">
@@ -612,11 +612,13 @@
     if (imp && imp.sfondo_url) {
       document.getElementById('iscrizione-hero').style.backgroundImage = `url('${imp.sfondo_url}')`;
       // La stessa immagine di sfondo impostata in admin diventa lo sfondo di tutta l'app,
-      // al posto del colore pieno (--bg) usato finora.
-      document.body.style.backgroundImage = `url('${imp.sfondo_url}')`;
-      document.body.style.backgroundSize = 'auto';
-      document.body.style.backgroundPosition = 'top left';
-      document.body.style.backgroundRepeat = 'repeat';
+      // al posto del colore pieno (--bg) usato finora. Ci mettiamo sopra un velo crema
+      // semi-trasparente per smorzarla: resta visibile ma i prodotti in primo piano
+      // risaltano di più, dando un effetto di profondità.
+      document.body.style.backgroundImage = `linear-gradient(rgba(247,238,203,0.78), rgba(247,238,203,0.78)), url('${imp.sfondo_url}')`;
+      document.body.style.backgroundSize = 'auto, auto';
+      document.body.style.backgroundPosition = 'top left, top left';
+      document.body.style.backgroundRepeat = 'no-repeat, repeat';
     }
     if (imp && imp.logo_url) {
       const logo1 = document.getElementById('iscrizione-logo');
