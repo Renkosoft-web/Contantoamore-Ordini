@@ -775,6 +775,13 @@
         </div>
       </div>
 
+      <div style="margin-top:14px; padding-top:14px; border-top:1px solid var(--border);">
+        <label style="display:flex; align-items:center; gap:8px; margin-top:0;">
+          <input type="checkbox" id="gruppo-post-aggiunta-carrello" style="width:auto;"> Mostra come suggerimento DOPO "Aggiungi al carrello"
+        </label>
+        <p style="font-size:12px; color:var(--ink-dim); margin-top:4px;">Es. "Hai bisogno anche di...": posate, pane, tovaglioli. Questo gruppo non compare nella scelta variazioni del prodotto, ma in un popup subito dopo che il cliente ha premuto "Aggiungi al carrello", con l'opzione di proseguire senza aggiungere nulla.</p>
+      </div>
+
       <div class="msg" id="gruppo-msg"></div>
       <div class="modal-actions">
         <button type="button" class="secondary" onclick="closeModal('modal-gruppo-variazione')">Annulla</button>
@@ -1375,7 +1382,7 @@
       return `
         <div style="margin-bottom:14px;">
           <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:6px;">
-            <div style="font-weight:600; font-size:13px;">${escapeHtml(v.nome_gruppo)} ${v.obbligatorio ? '<span class="badge">Obbligatorio</span>' : ''}</div>
+            <div style="font-weight:600; font-size:13px;">${escapeHtml(v.nome_gruppo)} ${v.obbligatorio ? '<span class="badge">Obbligatorio</span>' : ''}${v.post_aggiunta_carrello ? ' <span class="badge">🛒 Post-carrello</span>' : ''}</div>
             ${opzioniFiltrate.length > 1 ? `
               <label style="display:flex; align-items:center; gap:4px; font-size:11px; color:var(--ink-dim); cursor:pointer; white-space:nowrap;">
                 <input type="checkbox" class="chk-seleziona-tutto-gruppo" data-gruppo="${v.id}" style="width:auto;" ${tutteSelezionate ? 'checked' : ''}>
@@ -1683,7 +1690,7 @@
           <span style="color:var(--ink-dim); font-size:18px; margin-right:2px; user-select:none;">⠿</span>
           <div class="item-info">
             <div class="name">${escapeHtml(v.nome_gruppo)}</div>
-            <div class="meta">${(v.opzioni_variazione || []).length} opzioni · Max scelte: ${v.max_scelte === 0 ? 'Nessun limite' : v.max_scelte} · <span class="badge">${v.tipo === 'eliminazione' ? '➖ Eliminazione' : v.tipo === 'entrambi' ? '↕️ Entrambi' : '➕ Aggiunta'}</span> · <span class="badge ${v.obbligatorio ? '' : 'off'}">${v.obbligatorio ? 'Obbligatorio' : 'Opzionale'}</span></div>
+            <div class="meta">${(v.opzioni_variazione || []).length} opzioni · Max scelte: ${v.max_scelte === 0 ? 'Nessun limite' : v.max_scelte} · <span class="badge">${v.tipo === 'eliminazione' ? '➖ Eliminazione' : v.tipo === 'entrambi' ? '↕️ Entrambi' : '➕ Aggiunta'}</span> · <span class="badge ${v.obbligatorio ? '' : 'off'}">${v.obbligatorio ? 'Obbligatorio' : 'Opzionale'}</span>${v.post_aggiunta_carrello ? ' · <span class="badge">🛒 Post-carrello</span>' : ''}</div>
           </div>
         </div>
         <div class="item-actions">
@@ -1700,6 +1707,7 @@
     document.getElementById('gruppo-id').value = '';
     document.getElementById('gruppo-max').value = 1;
     document.getElementById('gruppo-tipo').value = 'aggiunta';
+    document.getElementById('gruppo-post-aggiunta-carrello').checked = false;
     document.getElementById('modal-gruppo-title').textContent = 'Nuovo gruppo variazione';
     clearMsg('gruppo-msg');
     openModal('modal-gruppo-variazione');
@@ -1713,6 +1721,7 @@
     document.getElementById('gruppo-obbligatorio').checked = v.obbligatorio;
     document.getElementById('gruppo-max').value = v.max_scelte;
     document.getElementById('gruppo-tipo').value = v.tipo || 'aggiunta';
+    document.getElementById('gruppo-post-aggiunta-carrello').checked = !!v.post_aggiunta_carrello;
     document.getElementById('modal-gruppo-title').textContent = 'Modifica gruppo variazione';
     clearMsg('gruppo-msg');
     openModal('modal-gruppo-variazione');
@@ -1736,7 +1745,8 @@
       obbligatorio: document.getElementById('gruppo-obbligatorio').checked,
       min_scelte: 0,
       max_scelte: (() => { const n = parseInt(document.getElementById('gruppo-max').value); return isNaN(n) ? 1 : n; })(),
-      tipo: document.getElementById('gruppo-tipo').value
+      tipo: document.getElementById('gruppo-tipo').value,
+      post_aggiunta_carrello: document.getElementById('gruppo-post-aggiunta-carrello').checked
     };
 
     try {
