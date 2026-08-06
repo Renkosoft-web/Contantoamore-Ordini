@@ -488,7 +488,7 @@
   </div>
 </div>
 
-<div style="position:fixed; bottom:4px; right:6px; font-size:10px; color:#b2a878; z-index:1;">v2026-08-05-n (diagnostica errori: aggiungi al carrello)</div>
+<div style="position:fixed; bottom:4px; right:6px; font-size:10px; color:#b2a878; z-index:1;">v2026-08-05-o (fix: popup post-carrello si chiudeva subito da solo)</div>
 
 <!-- ============ MODAL INSTALLA APP ============ -->
 <div class="modal-backdrop" id="modal-installa-app">
@@ -610,9 +610,13 @@
       document.body.style.overflow = '';
     }
     // Se la chiusura arriva da un pulsante (Annulla/X/backdrop) e non dal tasto indietro,
-    // consumiamo noi la voce di cronologia aperta da openModal, per tenerla pulita.
+    // NON usiamo history.back(): è asincrono, e se subito dopo (nello stesso click) si apre
+    // un altro modal — es. chiudiamo il dettaglio prodotto e apriamo subito "Hai bisogno
+    // anche" — il back() in ritardo arriva DOPO il nuovo openModal() e chiude quel popup
+    // un istante dopo averlo aperto (il "lampeggia e sparisce" che capitava). Ci limitiamo
+    // quindi a rietichettare lo stato corrente senza navigare, che è sincrono e sicuro.
     if (!chiusuraDaTastoIndietro) {
-      history.back();
+      history.replaceState({ ancora: true }, '', location.href);
     }
   }
 
