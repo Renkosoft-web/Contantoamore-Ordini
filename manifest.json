@@ -1,0 +1,14 @@
+{
+  "name": "Contanto Amore — Ordina",
+  "short_name": "Contanto Amore",
+  "description": "Ordina online da Contanto Amore",
+  "start_url": "/ordina/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f7eecb",
+  "theme_color": "#33421f",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}
