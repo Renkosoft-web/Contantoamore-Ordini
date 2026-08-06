@@ -482,7 +482,17 @@
   </div>
 </div>
 
-<div style="position:fixed; bottom:4px; right:6px; font-size:10px; color:#b2a878; z-index:1;">v2026-08-05-k (numero scelte visibile sulla card prodotto)</div>
+<div style="position:fixed; bottom:4px; right:6px; font-size:10px; color:#b2a878; z-index:1;">v2026-08-05-l (verifica email, tasto indietro sicuro, carrello persistente)</div>
+
+<!-- ============ MODAL VERIFICA EMAIL (dopo registrazione) ============ -->
+<div class="modal-backdrop" id="modal-verifica-email">
+  <div class="modal-sheet" style="text-align:center;">
+    <div style="font-size:44px; margin-bottom:10px;">📧</div>
+    <h3 style="margin-bottom:10px;">Controlla la tua email</h3>
+    <p style="color:var(--ink-dim); font-size:14px;">Ti abbiamo inviato un'email di conferma. Apri il link che trovi al suo interno per verificare l'account, poi torna qui e accedi.</p>
+    <button type="button" style="width:100%; margin-top:18px;" onclick="closeModal('modal-verifica-email')">Ho capito</button>
+  </div>
+</div>
 
 <!-- ============ MODAL NOTIFICA GESTORE ============ -->
 <div class="modal-backdrop" id="modal-notifica">
@@ -546,6 +556,9 @@
   let modificaCarrelloChiave = null; // se valorizzata, "Aggiungi al carrello" aggiorna questa riga invece di crearne una nuova
   let gruppiAttiviDettaglio = []; // gruppi variazione attualmente renderizzati nel modal dettaglio (normali, + post-carrello se in modifica)
 
+  let modalStack = []; // id dei modal attualmente aperti, nell'ordine di apertura
+  let chiusuraDaTastoIndietro = false; // evita loop tra closeModal() e history.back()
+
   function showMsg(id, text, type) {
     const el = document.getElementById(id);
     el.textContent = text;
@@ -559,13 +572,37 @@
       const sheet = document.querySelector('#modal-prodotto-dettaglio .modal-sheet');
       sheet.style.maxHeight = Math.round(window.innerHeight * 0.92) + 'px';
     }
+    // Registriamo l'apertura nella cronologia del browser: così il tasto indietro
+    // (fisico su Android o del browser) chiude QUESTO popup invece di uscire dall'app.
+    modalStack.push(id);
+    history.pushState({ modalId: id }, '', location.href);
   }
   window.closeModal = function(id) {
     document.getElementById(id).classList.remove('show');
+    modalStack = modalStack.filter(m => m !== id);
     if (!document.querySelector('.modal-backdrop.show')) {
       document.body.style.overflow = '';
     }
+    // Se la chiusura arriva da un pulsante (Annulla/X/backdrop) e non dal tasto indietro,
+    // consumiamo noi la voce di cronologia aperta da openModal, per tenerla pulita.
+    if (!chiusuraDaTastoIndietro) {
+      history.back();
+    }
   }
+
+  // Tasto indietro (fisico Android o del browser): se c'è un popup aperto lo chiude,
+  // altrimenti "intrappola" la navigazione per evitare che l'app si chiuda per sbaglio
+  // mentre si sta prendendo un ordine.
+  window.addEventListener('popstate', () => {
+    if (modalStack.length) {
+      chiusuraDaTastoIndietro = true;
+      closeModal(modalStack[modalStack.length - 1]);
+      chiusuraDaTastoIndietro = false;
+    } else {
+      history.pushState({ ancora: true }, '', location.href);
+    }
+  });
+  history.pushState({ ancora: true }, '', location.href);
   function normalizzaTesto(str) {
     return (str || '')
       .toLowerCase()
@@ -729,8 +766,9 @@
         const ok = await caricaOImpostaProfiloCliente(data.user);
         if (ok) await entraNelMenu();
       } else {
-        showMsg('registrazione-msg', 'Registrazione completata! Controlla la tua email per confermare l\'account, poi accedi.', 'ok');
-        setTimeout(() => mostraVista('vista-login'), 2500);
+        showMsg('registrazione-msg', 'Registrazione completata!', 'ok');
+        openModal('modal-verifica-email');
+        mostraVista('vista-login');
       }
     } catch (err) {
       showMsg('registrazione-msg', 'Errore: ' + err.message, 'error');
@@ -941,6 +979,8 @@
   // ================= MENU =================
   async function entraNelMenu() {
     await caricaMenu();
+    ripristinaCarrelloLocale();
+    aggiornaFabCarrello();
     mostraSchermata('schermata-menu');
     aggiornaBadgeSaldoHeader();
     mostraNotificaGestoreSeAttiva();
@@ -1458,6 +1498,30 @@
     return carrello.reduce((sum, r) => sum + r.prezzoUnitario * r.quantita, 0);
   }
 
+  function chiaveCarrelloLocale() {
+    return 'contantoamore_carrello_' + TENANT_ID;
+  }
+
+  // Salva il carrello nel browser (localStorage) ad ogni modifica, così se l'app/Chrome
+  // viene chiusa a metà ordine, riaprendola il carrello è ancora lì.
+  function salvaCarrelloLocale() {
+    try {
+      localStorage.setItem(chiaveCarrelloLocale(), JSON.stringify(carrello));
+    } catch (e) { /* storage non disponibile: pazienza, si prosegue senza persistenza */ }
+  }
+
+  // Ripristina il carrello salvato in precedenza, scartando eventuali righe di prodotti
+  // nel frattempo rimossi/disattivati dal menu.
+  function ripristinaCarrelloLocale() {
+    try {
+      const salvato = localStorage.getItem(chiaveCarrelloLocale());
+      if (!salvato) return;
+      const righe = JSON.parse(salvato);
+      if (!Array.isArray(righe)) return;
+      carrello = righe.filter(r => prodottiList.some(p => p.id === r.prodotto_id));
+    } catch (e) { /* dato corrotto o non presente: si riparte con carrello vuoto */ }
+  }
+
   function aggiornaFabCarrello() {
     const fab = document.getElementById('carrello-fab');
     const count = carrello.reduce((s, r) => s + r.quantita, 0);
@@ -1473,6 +1537,7 @@
       badgeHeader.style.display = 'none';
     }
     aggiornaBadgeProdottiInCarrello();
+    salvaCarrelloLocale();
   }
 
   // Mostra sulla card di ogni prodotto (nel menu) quante unità sono già nel carrello,
