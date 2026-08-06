@@ -227,6 +227,16 @@
     margin: 4px -20px;
     padding: 4px 20px;
   }
+  #modal-hai-bisogno-anche .modal-sheet > *:not(#hai-bisogno-anche-opzioni) { flex-shrink: 0; }
+  #hai-bisogno-anche-opzioni {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+    margin: 4px -20px;
+    padding: 4px 20px;
+  }
 
   .var-gruppo {
     margin-bottom: 18px;
@@ -488,7 +498,7 @@
   </div>
 </div>
 
-<div style="position:fixed; bottom:4px; right:6px; font-size:10px; color:#b2a878; z-index:1;">v2026-08-05-o (fix: popup post-carrello si chiudeva subito da solo)</div>
+<div style="position:fixed; bottom:4px; right:6px; font-size:10px; color:#b2a878; z-index:1;">v2026-08-05-p (fix scrollspy tab categorie + popup post-carrello a schermo intero)</div>
 
 <!-- ============ MODAL INSTALLA APP ============ -->
 <div class="modal-backdrop" id="modal-installa-app">
@@ -594,8 +604,8 @@
   function openModal(id) {
     document.getElementById(id).classList.add('show');
     document.body.style.overflow = 'hidden';
-    if (id === 'modal-prodotto-dettaglio') {
-      const sheet = document.querySelector('#modal-prodotto-dettaglio .modal-sheet');
+    if (id === 'modal-prodotto-dettaglio' || id === 'modal-hai-bisogno-anche') {
+      const sheet = document.querySelector(`#${id} .modal-sheet`);
       sheet.style.maxHeight = Math.round(window.innerHeight * 0.92) + 'px';
     }
     // Registriamo l'apertura nella cronologia del browser: così il tasto indietro
@@ -1177,7 +1187,21 @@
         bloccoScrollSpy = true;
         const el = document.getElementById('cat-' + btn.dataset.cat);
         if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        setTimeout(() => { bloccoScrollSpy = false; }, 700);
+
+        // Sblocchiamo lo scrollspy solo a scroll fluido davvero concluso ('scrollend', dove
+        // supportato), con un timeout più lungo come rete di sicurezza altrove: se una
+        // categoria è lontana lo scroll smooth può durare più di qualche centinaio di ms,
+        // e riprendere il controllo troppo presto sovrascriveva la tab appena scelta con
+        // quella "di passaggio" durante l'animazione.
+        let sbloccato = false;
+        const sblocca = () => {
+          if (sbloccato) return;
+          sbloccato = true;
+          bloccoScrollSpy = false;
+          window.removeEventListener('scrollend', sblocca);
+        };
+        window.addEventListener('scrollend', sblocca, { once: true });
+        setTimeout(sblocca, 1500);
       });
     });
   }
