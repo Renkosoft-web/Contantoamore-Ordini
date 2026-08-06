@@ -100,7 +100,7 @@
 
   /* ---- Menu ---- */
   header.menu-header {
-    padding: 16px 18px 14px;
+    padding: 0 0 14px;
     background: var(--panel);
     border-bottom: 1px solid var(--border);
     display: flex;
@@ -109,8 +109,8 @@
     gap: 6px;
     position: fixed; top: 0; left: 0; right: 0; z-index: 20;
   }
-  header.menu-header img { height: 52px; max-width: 240px; width: auto; object-fit: contain; }
-  header.menu-header .nome { font-weight: 700; font-size: 17px; text-align: center; color: var(--verde); }
+  header.menu-header #menu-logo { width: 100%; height: 110px; object-fit: cover; display: block; margin: 0; }
+  header.menu-header .nome { font-weight: 700; font-size: 17px; text-align: center; color: var(--verde); padding: 0 18px; margin-top: 8px; }
 
   nav.categorie-tabs {
     display: flex;
@@ -374,8 +374,8 @@
 <!-- ============ MENU ============ -->
 <div class="screen" id="schermata-menu">
   <header class="menu-header">
-    <button id="btn-account" style="position:absolute; top:14px; right:14px; width:38px; height:38px; border-radius:50%; background:var(--panel-2); border:1px solid var(--border); font-size:18px; padding:0; color:var(--verde);">⚙️</button>
-    <div id="badge-saldo-header" style="position:absolute; top:54px; right:14px; font-size:11px; font-weight:700; color:var(--accent); display:none;"></div>
+    <button id="btn-account" style="position:absolute; top:12px; right:14px; width:38px; height:38px; border-radius:50%; background:rgba(255,255,255,0.85); border:1px solid var(--border); font-size:18px; padding:0; color:var(--verde); z-index:1;">⚙️</button>
+    <div id="badge-saldo-header" style="position:absolute; top:56px; right:14px; font-size:11px; font-weight:700; color:#fff; background:rgba(0,0,0,0.45); padding:2px 8px; border-radius:10px; display:none; z-index:1;"></div>
     <img id="menu-logo" style="display:none;">
     <div class="nome" id="menu-nome-locale">—</div>
   </header>
@@ -467,7 +467,7 @@
   </div>
 </div>
 
-<div style="position:fixed; bottom:4px; right:6px; font-size:10px; color:#b2a878; z-index:1;">v2026-08-05-f (quantità sulle opzioni + modifica gruppi post-carrello)</div>
+<div style="position:fixed; bottom:4px; right:6px; font-size:10px; color:#b2a878; z-index:1;">v2026-08-05-g (banner a tutta larghezza + sfondo app personalizzato)</div>
 
 <!-- ============ MODAL NOTIFICA GESTORE ============ -->
 <div class="modal-backdrop" id="modal-notifica">
@@ -603,6 +603,12 @@
 
     if (imp && imp.sfondo_url) {
       document.getElementById('iscrizione-hero').style.backgroundImage = `url('${imp.sfondo_url}')`;
+      // La stessa immagine di sfondo impostata in admin diventa lo sfondo di tutta l'app,
+      // al posto del colore pieno (--bg) usato finora.
+      document.body.style.backgroundImage = `url('${imp.sfondo_url}')`;
+      document.body.style.backgroundSize = 'cover';
+      document.body.style.backgroundPosition = 'center';
+      document.body.style.backgroundRepeat = 'no-repeat';
     }
     if (imp && imp.logo_url) {
       const logo1 = document.getElementById('iscrizione-logo');
