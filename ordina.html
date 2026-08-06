@@ -100,17 +100,16 @@
 
   /* ---- Menu ---- */
   header.menu-header {
-    padding: 0 0 14px;
+    padding: 0;
     background: var(--panel);
     border-bottom: 1px solid var(--border);
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 6px;
     position: fixed; top: 0; left: 0; right: 0; z-index: 20;
   }
   header.menu-header #menu-logo { width: 100%; height: 110px; object-fit: cover; display: block; margin: 0; }
-  header.menu-header .nome { font-weight: 700; font-size: 17px; text-align: center; color: var(--verde); padding: 0 18px; margin-top: 8px; }
+  header.menu-header .nome { display: none; }
 
   nav.categorie-tabs {
     display: flex;
@@ -174,14 +173,14 @@
   /* ---- Carrello flottante ---- */
   #carrello-fab {
     position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
-    background: var(--verde); color: #fff; border-radius: 30px;
+    background: var(--accent); color: var(--accent-ink); border-radius: 30px;
     padding: 14px 24px; font-weight: 700; font-size: 14px;
     display: none; align-items: center; gap: 10px; cursor: pointer;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.25); z-index: 30; border: none;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.3); z-index: 30; border: none;
   }
   #carrello-fab.show { display: flex; }
   #carrello-badge {
-    background: #fff; color: var(--verde); border-radius: 50%;
+    background: #fff; color: var(--accent); border-radius: 50%;
     width: 22px; height: 22px; display: flex; align-items: center; justify-content: center;
     font-size: 12px; font-weight: 800;
   }
@@ -380,6 +379,9 @@
 <!-- ============ MENU ============ -->
 <div class="screen" id="schermata-menu">
   <header class="menu-header">
+    <button id="btn-carrello-header" style="position:absolute; top:12px; right:60px; width:38px; height:38px; border-radius:50%; background:rgba(255,255,255,0.85); border:1px solid var(--border); font-size:17px; padding:0; color:var(--verde); z-index:1;">
+      🛒<span id="carrello-badge-header" style="position:absolute; top:-4px; right:-4px; background:var(--accent); color:#fff; border-radius:50%; width:18px; height:18px; font-size:10px; font-weight:800; display:none; align-items:center; justify-content:center;">0</span>
+    </button>
     <button id="btn-account" style="position:absolute; top:12px; right:14px; width:38px; height:38px; border-radius:50%; background:rgba(255,255,255,0.85); border:1px solid var(--border); font-size:18px; padding:0; color:var(--verde); z-index:1;">⚙️</button>
     <div id="badge-saldo-header" style="position:absolute; top:56px; right:14px; font-size:11px; font-weight:700; color:#fff; background:rgba(0,0,0,0.45); padding:2px 8px; border-radius:10px; display:none; z-index:1;"></div>
     <img id="menu-logo" style="display:none;">
@@ -473,7 +475,7 @@
   </div>
 </div>
 
-<div style="position:fixed; bottom:4px; right:6px; font-size:10px; color:#b2a878; z-index:1;">v2026-08-05-h (sfondo a ripetizione + titoli reparti leggibili)</div>
+<div style="position:fixed; bottom:4px; right:6px; font-size:10px; color:#b2a878; z-index:1;">v2026-08-05-i (nome locale nascosto, cta carrello più chiara, icona carrello header)</div>
 
 <!-- ============ MODAL NOTIFICA GESTORE ============ -->
 <div class="modal-backdrop" id="modal-notifica">
@@ -1449,21 +1451,28 @@
   function aggiornaFabCarrello() {
     const fab = document.getElementById('carrello-fab');
     const count = carrello.reduce((s, r) => s + r.quantita, 0);
+    const badgeHeader = document.getElementById('carrello-badge-header');
     if (count > 0) {
       fab.classList.add('show');
       document.getElementById('carrello-badge').textContent = count;
       document.getElementById('carrello-fab-totale').textContent = 'Vedi carrello — ' + formatEuro(totaleCarrello());
+      badgeHeader.textContent = count;
+      badgeHeader.style.display = 'flex';
     } else {
       fab.classList.remove('show');
+      badgeHeader.style.display = 'none';
     }
   }
 
-  document.getElementById('carrello-fab').addEventListener('click', async () => {
+  async function apriModalCarrello() {
     renderCarrello();
     generaFasceOrarie();
     await aggiornaBloccoPrepagato();
     openModal('modal-carrello');
-  });
+  }
+
+  document.getElementById('carrello-fab').addEventListener('click', apriModalCarrello);
+  document.getElementById('btn-carrello-header').addEventListener('click', apriModalCarrello);
 
   async function aggiornaBloccoPrepagato() {
     const blocco = document.getElementById('blocco-pagamento-prepagato');
