@@ -137,11 +137,17 @@
 
   main.menu-main { padding: 18px; padding-top: var(--contenuto-top, 140px); max-width: 700px; margin: 0 auto; }
   .categoria-blocco { margin-bottom: 28px; scroll-margin-top: var(--contenuto-top, 140px); }
-  .categoria-titolo { font-size: 20px; font-weight: 800; margin-bottom: 4px; color: var(--verde); font-family: 'Baloo 2', sans-serif; }
+  .categoria-titolo {
+    font-size: 20px; font-weight: 800; margin-bottom: 4px; color: var(--verde); font-family: 'Baloo 2', sans-serif;
+    text-shadow: -1px -1px 0 rgba(255,255,255,0.85), 1px -1px 0 rgba(255,255,255,0.85), -1px 1px 0 rgba(255,255,255,0.85), 1px 1px 0 rgba(255,255,255,0.85), 0 0 8px rgba(255,255,255,0.9);
+  }
   .categoria-desc { font-size: 13px; color: var(--ink-dim); margin-bottom: 14px; }
   .sottocategoria-blocco { margin-top: 16px; padding-top: 12px; border-top: 1px dashed var(--border); }
   .sottocategoria-blocco:first-of-type { margin-top: 8px; border-top: none; padding-top: 0; }
-  .sottocategoria-titolo { font-size: 15px; font-weight: 700; margin-bottom: 8px; color: var(--verde); font-family: 'Baloo 2', sans-serif; opacity: 0.85; }
+  .sottocategoria-titolo {
+    font-size: 15px; font-weight: 700; margin-bottom: 8px; color: var(--verde); font-family: 'Baloo 2', sans-serif; opacity: 0.85;
+    text-shadow: -1px -1px 0 rgba(255,255,255,0.85), 1px -1px 0 rgba(255,255,255,0.85), -1px 1px 0 rgba(255,255,255,0.85), 1px 1px 0 rgba(255,255,255,0.85), 0 0 8px rgba(255,255,255,0.9);
+  }
 
   .prodotto-card {
     display: flex;
@@ -467,7 +473,7 @@
   </div>
 </div>
 
-<div style="position:fixed; bottom:4px; right:6px; font-size:10px; color:#b2a878; z-index:1;">v2026-08-05-g (banner a tutta larghezza + sfondo app personalizzato)</div>
+<div style="position:fixed; bottom:4px; right:6px; font-size:10px; color:#b2a878; z-index:1;">v2026-08-05-h (sfondo a ripetizione + titoli reparti leggibili)</div>
 
 <!-- ============ MODAL NOTIFICA GESTORE ============ -->
 <div class="modal-backdrop" id="modal-notifica">
@@ -606,9 +612,9 @@
       // La stessa immagine di sfondo impostata in admin diventa lo sfondo di tutta l'app,
       // al posto del colore pieno (--bg) usato finora.
       document.body.style.backgroundImage = `url('${imp.sfondo_url}')`;
-      document.body.style.backgroundSize = 'cover';
-      document.body.style.backgroundPosition = 'center';
-      document.body.style.backgroundRepeat = 'no-repeat';
+      document.body.style.backgroundSize = 'auto';
+      document.body.style.backgroundPosition = 'top left';
+      document.body.style.backgroundRepeat = 'repeat';
     }
     if (imp && imp.logo_url) {
       const logo1 = document.getElementById('iscrizione-logo');
