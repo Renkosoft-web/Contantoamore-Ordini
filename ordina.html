@@ -106,16 +106,16 @@
 
   /* ---- Home (dopo il login) ---- */
   header.home-header {
-    padding: 12px 14px;
+    position: relative;
+    padding: 0;
     background: var(--panel);
     border-bottom: 1px solid var(--border);
-    display: flex; align-items: center; justify-content: space-between;
   }
-  header.home-header #home-logo { max-height: 44px; max-width: 60%; object-fit: contain; }
-  .home-header-azioni { display: flex; gap: 8px; margin-left: auto; }
+  header.home-header #home-logo { width: 100%; height: 110px; object-fit: cover; display: block; margin: 0; }
+  .home-header-azioni { position: absolute; top: 12px; right: 14px; display: flex; gap: 8px; z-index: 1; }
   .home-header-btn {
     position: relative; width: 38px; height: 38px; border-radius: 50%;
-    background: var(--panel-2); border: 1px solid var(--border); font-size: 17px;
+    background: rgba(255,255,255,0.85); border: 1px solid var(--border); font-size: 17px;
     padding: 0; color: var(--verde);
   }
   .home-header-badge {
@@ -686,7 +686,7 @@
   </div>
 </div>
 
-<div style="position:fixed; bottom:4px; right:6px; font-size:10px; color:#b2a878; z-index:1;">v2026-08-06-d (contatti: mappa incorporata + pulsanti Maps/Chiama)</div>
+<div style="position:fixed; bottom:4px; right:6px; font-size:10px; color:#b2a878; z-index:1;">v2026-08-06-e (banner logo home a tutta larghezza)</div>
 
 <!-- ============ MODAL INSTALLA APP ============ -->
 <div class="modal-backdrop" id="modal-installa-app">
