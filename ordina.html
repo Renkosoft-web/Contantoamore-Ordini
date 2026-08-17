@@ -85,6 +85,8 @@
   .screen.active { display: block; }
 
   /* ---- Iscrizione ---- */
+  .banner-logo-header { background: var(--panel); border-bottom: 1px solid var(--border); }
+  .banner-logo-header #iscrizione-logo { width: 100%; height: 110px; object-fit: cover; display: block; margin: 0; }
   #iscrizione-hero {
     height: 220px;
     background-size: cover;
@@ -99,7 +101,6 @@
     background: linear-gradient(to top, var(--verde) 0%, rgba(51,66,31,0.15) 100%);
   }
   #iscrizione-hero-content { position: relative; z-index: 1; padding: 20px 20px 16px; }
-  #iscrizione-logo { max-height: 50px; max-width: 60%; object-fit: contain; display: none; margin-bottom: 10px; }
   #iscrizione-nome-locale { font-size: 24px; font-weight: 700; color: #fff; }
 
   .card { max-width: 480px; margin: 0 auto; padding: 24px 20px; }
@@ -435,9 +436,11 @@
 
 <!-- ============ ISCRIZIONE / ACCESSO ============ -->
 <div class="screen active" id="schermata-iscrizione">
+  <header class="banner-logo-header">
+    <img id="iscrizione-logo" style="display:none;">
+  </header>
   <div id="iscrizione-hero">
     <div id="iscrizione-hero-content">
-      <img id="iscrizione-logo">
       <div id="iscrizione-nome-locale">Il tuo locale</div>
     </div>
   </div>
@@ -686,7 +689,7 @@
   </div>
 </div>
 
-<div style="position:fixed; bottom:4px; right:6px; font-size:10px; color:#b2a878; z-index:1;">v2026-08-06-e (banner logo home a tutta larghezza)</div>
+<div style="position:fixed; bottom:4px; right:6px; font-size:10px; color:#b2a878; z-index:1;">v2026-08-06-f (banner logo a tutta larghezza anche su login/iscrizione)</div>
 
 <!-- ============ MODAL INSTALLA APP ============ -->
 <div class="modal-backdrop" id="modal-installa-app">
