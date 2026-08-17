@@ -177,6 +177,23 @@
   .contatti-riga .icona { font-size: 20px; }
   .contatti-riga a { color: var(--verde); font-weight: 600; }
 
+  .contatti-mappa-link {
+    display: block; position: relative; margin-bottom: 12px;
+    border-radius: var(--radius); overflow: hidden; border: 1px solid var(--border);
+  }
+  .contatti-mappa { width: 100%; height: 220px; border: none; display: block; }
+  .contatti-mappa-overlay {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    background: rgba(0,0,0,0.15); color: #fff; font-weight: 700; font-size: 14px;
+    text-shadow: 0 1px 4px rgba(0,0,0,0.5);
+  }
+  .contatti-btn-azione {
+    display: block; text-align: center; background: var(--verde); color: #fff;
+    font-weight: 700; font-size: 15px; padding: 14px; border-radius: var(--radius);
+    margin-bottom: 18px; text-decoration: none;
+  }
+  .contatti-btn-chiama { background: var(--accent); margin-top: 22px; margin-bottom: 0; }
+
   /* ---- "Scarica il menu": contenuto nascosto, visibile solo quando si stampa ---- */
   #stampa-menu-contenuto { display: none; }
   body.stampa-menu-attiva > *:not(#stampa-menu-contenuto) { display: none !important; }
@@ -669,7 +686,7 @@
   </div>
 </div>
 
-<div style="position:fixed; bottom:4px; right:6px; font-size:10px; color:#b2a878; z-index:1;">v2026-08-06-c (fix percorso immagini home/chi-siamo)</div>
+<div style="position:fixed; bottom:4px; right:6px; font-size:10px; color:#b2a878; z-index:1;">v2026-08-06-d (contatti: mappa incorporata + pulsanti Maps/Chiama)</div>
 
 <!-- ============ MODAL INSTALLA APP ============ -->
 <div class="modal-backdrop" id="modal-installa-app">
@@ -1352,19 +1369,38 @@ La cucina non è solo ciò che mangiamo. O meglio: non è solo questo. È l'elab
     const via = impostazioni.indirizzo || '';
     const capCitta = [impostazioni.cap, impostazioni.citta].filter(Boolean).join(' ');
     const indirizzoCompleto = [via, capCitta].filter(Boolean).join(', ');
+
+    let mappaHtml = '';
+    if (indirizzoCompleto) {
+      const query = encodeURIComponent(indirizzoCompleto);
+      const mapsUrl = 'https://www.google.com/maps/search/?api=1&query=' + query;
+      const embedUrl = 'https://maps.google.com/maps?q=' + query + '&z=15&output=embed';
+      mappaHtml = `
+        <a href="${mapsUrl}" target="_blank" rel="noopener" class="contatti-mappa-link" aria-label="Apri in Google Maps">
+          <iframe class="contatti-mappa" src="${embedUrl}" loading="lazy" style="pointer-events:none;"></iframe>
+          <div class="contatti-mappa-overlay">📍 Tocca per aprire la mappa</div>
+        </a>
+        <a href="${mapsUrl}" target="_blank" rel="noopener" class="contatti-btn-azione">🧭 Vai a Maps</a>
+      `;
+    }
+
     const righe = [];
     if (indirizzoCompleto) {
-      const mapsUrl = 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(indirizzoCompleto);
-      righe.push(`<div class="contatti-riga"><span class="icona">📍</span><div><a href="${mapsUrl}" target="_blank" rel="noopener">${escapeHtml(indirizzoCompleto)}</a></div></div>`);
+      righe.push(`<div class="contatti-riga"><span class="icona">📍</span><div>${escapeHtml(indirizzoCompleto)}</div></div>`);
     }
     if (impostazioni.telefono) {
-      righe.push(`<div class="contatti-riga"><span class="icona">📞</span><div><a href="tel:${escapeHtml(impostazioni.telefono.replace(/\s+/g,''))}">${escapeHtml(impostazioni.telefono)}</a></div></div>`);
+      righe.push(`<div class="contatti-riga"><span class="icona">📞</span><div>${escapeHtml(impostazioni.telefono)}</div></div>`);
     }
     if (impostazioni.sito_web) {
       const url = impostazioni.sito_web.startsWith('http') ? impostazioni.sito_web : 'https://' + impostazioni.sito_web;
       righe.push(`<div class="contatti-riga"><span class="icona">🌐</span><div><a href="${escapeHtml(url)}" target="_blank" rel="noopener">${escapeHtml(impostazioni.sito_web)}</a></div></div>`);
     }
-    cont.innerHTML = righe.length ? righe.join('') : '<div class="empty-state">Nessuna informazione di contatto disponibile.</div>';
+
+    const bottoneChiama = impostazioni.telefono
+      ? `<a href="tel:${escapeHtml(impostazioni.telefono.replace(/\s+/g, ''))}" class="contatti-btn-azione contatti-btn-chiama">📞 Contattaci</a>`
+      : '';
+
+    cont.innerHTML = mappaHtml + (righe.length ? righe.join('') : '<div class="empty-state">Nessuna informazione di contatto disponibile.</div>') + bottoneChiama;
   }
 
   // "Scarica il menu": genera una versione stampabile del menu completo (categorie e
