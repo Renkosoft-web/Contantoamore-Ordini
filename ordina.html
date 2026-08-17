@@ -104,6 +104,93 @@
 
   .card { max-width: 480px; margin: 0 auto; padding: 24px 20px; }
 
+  /* ---- Home (dopo il login) ---- */
+  header.home-header {
+    padding: 12px 14px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  header.home-header #home-logo { max-height: 44px; max-width: 60%; object-fit: contain; }
+  .home-header-azioni { display: flex; gap: 8px; margin-left: auto; }
+  .home-header-btn {
+    position: relative; width: 38px; height: 38px; border-radius: 50%;
+    background: var(--panel-2); border: 1px solid var(--border); font-size: 17px;
+    padding: 0; color: var(--verde);
+  }
+  .home-header-badge {
+    position: absolute; top: -4px; right: -4px; background: var(--accent); color: #fff;
+    border-radius: 50%; width: 18px; height: 18px; font-size: 10px; font-weight: 800;
+    align-items: center; justify-content: center;
+  }
+
+  #home-carosello-wrap { padding: 14px 0 6px; }
+  #home-carosello {
+    display: flex; overflow-x: auto; scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch; scrollbar-width: none;
+  }
+  #home-carosello::-webkit-scrollbar { display: none; }
+  #home-carosello img {
+    flex: 0 0 100%; width: 100%; aspect-ratio: 4/3; object-fit: cover;
+    scroll-snap-align: start;
+  }
+  #home-carosello-dots { display: flex; justify-content: center; gap: 7px; margin-top: 10px; }
+  #home-carosello-dots span {
+    width: 7px; height: 7px; border-radius: 50%; background: var(--border);
+  }
+  #home-carosello-dots span.active { background: var(--verde); width: 18px; border-radius: 4px; }
+
+  .home-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
+    padding: 18px 16px 32px;
+  }
+  .home-tile {
+    grid-column: span 1;
+    background: var(--verde); color: #f7eecb; border-radius: var(--radius);
+    padding: 22px 10px; display: flex; flex-direction: column; align-items: center; gap: 10px;
+    font-size: 14px; font-weight: 700; text-align: center; border: none;
+    box-shadow: 0 3px 10px rgba(0,0,0,0.12);
+  }
+  .home-tile-icon { font-size: 30px; }
+  .home-tile-full { grid-column: span 2; flex-direction: row; justify-content: center; padding: 16px; }
+
+  /* ---- Sotto-schermate (Chi siamo / Contatti) ---- */
+  header.sub-header {
+    position: sticky; top: 0; z-index: 10;
+    background: var(--panel); border-bottom: 1px solid var(--border);
+    padding: 14px 16px; display: flex; align-items: center; gap: 12px;
+  }
+  .btn-indietro {
+    background: none; border: none; color: var(--verde); font-weight: 700; font-size: 14px; padding: 4px 0;
+  }
+  .sub-header-titolo { font-size: 17px; font-weight: 800; color: var(--verde); font-family: 'Baloo 2', sans-serif; }
+  .sub-content { max-width: 640px; margin: 0 auto; padding: 20px 18px 40px; }
+  .chi-siamo-testo { font-size: 15px; line-height: 1.6; color: var(--ink); white-space: pre-wrap; margin-bottom: 22px; }
+  .chi-siamo-galleria {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px;
+  }
+  .chi-siamo-galleria img {
+    width: 100%; aspect-ratio: 1/1; object-fit: cover; border-radius: 8px; cursor: pointer;
+  }
+  .contatti-riga { display: flex; align-items: flex-start; gap: 12px; padding: 14px 0; border-bottom: 1px solid var(--border); font-size: 15px; }
+  .contatti-riga:last-child { border-bottom: none; }
+  .contatti-riga .icona { font-size: 20px; }
+  .contatti-riga a { color: var(--verde); font-weight: 600; }
+
+  /* ---- "Scarica il menu": contenuto nascosto, visibile solo quando si stampa ---- */
+  #stampa-menu-contenuto { display: none; }
+  body.stampa-menu-attiva > *:not(#stampa-menu-contenuto) { display: none !important; }
+  body.stampa-menu-attiva #stampa-menu-contenuto {
+    display: block; padding: 20px; font-family: 'Baloo 2', 'Segoe UI', sans-serif; color: #222;
+  }
+  #stampa-menu-contenuto h1 { font-size: 26px; margin-bottom: 18px; text-align: center; }
+  #stampa-menu-contenuto h2 { font-size: 18px; margin: 20px 0 8px; border-bottom: 2px solid #222; padding-bottom: 4px; }
+  .stampa-riga-prodotto { display: flex; align-items: baseline; gap: 6px; font-size: 14px; padding: 4px 0; }
+  .stampa-puntini { flex: 1; border-bottom: 1px dotted #999; margin: 0 4px; transform: translateY(-3px); }
+  @media print {
+    body.stampa-menu-attiva #stampa-menu-contenuto { display: block; }
+  }
+
   /* ---- Menu ---- */
   header.menu-header {
     padding: 0;
@@ -415,8 +502,77 @@
 </div>
 
 <!-- ============ MENU ============ -->
+<!-- ============ HOME (dopo il login) ============ -->
+<div class="screen" id="schermata-home">
+  <header class="home-header">
+    <img id="home-logo" style="display:none;">
+    <div class="home-header-azioni">
+      <button type="button" id="btn-carrello-home" class="home-header-btn">
+        🛒<span id="carrello-badge-home" class="home-header-badge" style="display:none;">0</span>
+      </button>
+      <button type="button" id="btn-account-home" class="home-header-btn">⚙️</button>
+    </div>
+  </header>
+
+  <div id="home-carosello-wrap">
+    <div id="home-carosello"></div>
+    <div id="home-carosello-dots"></div>
+  </div>
+
+  <div class="home-grid">
+    <button type="button" class="home-tile" id="tile-chi-siamo">
+      <span class="home-tile-icon">📖</span><span>Chi siamo</span>
+    </button>
+    <button type="button" class="home-tile" id="tile-ordina">
+      <span class="home-tile-icon">🛍️</span><span>Ordina</span>
+    </button>
+    <button type="button" class="home-tile" id="tile-area-personale">
+      <span class="home-tile-icon">👤</span><span>Area personale</span>
+    </button>
+    <button type="button" class="home-tile" id="tile-scarica-menu">
+      <span class="home-tile-icon">⬇️</span><span>Scarica il menu</span>
+    </button>
+    <button type="button" class="home-tile home-tile-full" id="tile-contatti">
+      <span class="home-tile-icon">☎️</span><span>Contatti</span>
+    </button>
+  </div>
+</div>
+
+<!-- ============ CHI SIAMO ============ -->
+<div class="screen" id="schermata-chi-siamo">
+  <header class="sub-header">
+    <button type="button" class="btn-indietro" onclick="mostraSchermata('schermata-home')">← Indietro</button>
+    <div class="sub-header-titolo">Chi siamo</div>
+  </header>
+  <div class="sub-content">
+    <div id="chi-siamo-testo" class="chi-siamo-testo"></div>
+    <div id="chi-siamo-galleria" class="chi-siamo-galleria"></div>
+  </div>
+</div>
+
+<!-- ============ CONTATTI ============ -->
+<div class="screen" id="schermata-contatti">
+  <header class="sub-header">
+    <button type="button" class="btn-indietro" onclick="mostraSchermata('schermata-home')">← Indietro</button>
+    <div class="sub-header-titolo">Contatti</div>
+  </header>
+  <div class="sub-content" id="contatti-contenuto"></div>
+</div>
+
+<!-- ============ MODAL FOTO INGRANDITA (galleria chi siamo) ============ -->
+<div class="modal-backdrop" id="modal-foto-ingrandita">
+  <div class="modal-sheet" style="padding:10px; max-width:600px;">
+    <img id="foto-ingrandita-img" style="width:100%; border-radius:12px; display:block;">
+    <button type="button" class="secondary" style="width:100%; margin-top:12px;" onclick="closeModal('modal-foto-ingrandita')">Chiudi</button>
+  </div>
+</div>
+
+<!-- ============ CONTENUTO STAMPABILE "SCARICA IL MENU" (nascosto, visibile solo in stampa) ============ -->
+<div id="stampa-menu-contenuto"></div>
+
 <div class="screen" id="schermata-menu">
   <header class="menu-header">
+    <button id="btn-home-da-menu" style="position:absolute; top:12px; left:14px; width:38px; height:38px; border-radius:50%; background:rgba(255,255,255,0.85); border:1px solid var(--border); font-size:17px; padding:0; color:var(--verde); z-index:1;" onclick="mostraSchermata('schermata-home')">🏠</button>
     <button id="btn-carrello-header" style="position:absolute; top:12px; right:60px; width:38px; height:38px; border-radius:50%; background:rgba(255,255,255,0.85); border:1px solid var(--border); font-size:17px; padding:0; color:var(--verde); z-index:1;">
       🛒<span id="carrello-badge-header" style="position:absolute; top:-4px; right:-4px; background:var(--accent); color:#fff; border-radius:50%; width:18px; height:18px; font-size:10px; font-weight:800; display:none; align-items:center; justify-content:center;">0</span>
     </button>
@@ -513,7 +669,7 @@
   </div>
 </div>
 
-<div style="position:fixed; bottom:4px; right:6px; font-size:10px; color:#b2a878; z-index:1;">v2026-08-05-q (popup post-carrello più grande e leggibile)</div>
+<div style="position:fixed; bottom:4px; right:6px; font-size:10px; color:#b2a878; z-index:1;">v2026-08-06-b (testo Chi siamo inserito)</div>
 
 <!-- ============ MODAL INSTALLA APP ============ -->
 <div class="modal-backdrop" id="modal-installa-app">
@@ -789,6 +945,8 @@
       logo1.src = imp.logo_url; logo1.style.display = 'block';
       const logo2 = document.getElementById('menu-logo');
       logo2.src = imp.logo_url; logo2.style.display = 'block';
+      const logo3 = document.getElementById('home-logo');
+      logo3.src = imp.logo_url; logo3.style.display = 'block';
     }
 
     // Imposta l'altezza reale dell'header per posizionare correttamente le tab sotto di esso
@@ -938,11 +1096,12 @@
   });
 
   // ================= ACCOUNT (Utente + I miei ordini) =================
-  document.getElementById('btn-account').addEventListener('click', () => {
+  function apriAccount() {
     renderProfiloAccount();
     mostraVistaAccount('profilo');
     openModal('modal-account');
-  });
+  }
+  document.getElementById('btn-account').addEventListener('click', apriAccount);
 
   document.querySelectorAll('.tab-account').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -1101,17 +1260,22 @@
     await caricaMenu();
     ripristinaCarrelloLocale();
     aggiornaFabCarrello();
-    mostraSchermata('schermata-menu');
+    mostraSchermata('schermata-home');
     aggiornaBadgeSaldoHeader();
     mostraNotificaGestoreSeAttiva();
     menuGiaVisibile = true;
     setTimeout(provaProponiInstallazione, 2500);
+    inizializzaCaroselloHome();
+  }
 
-    // Header e barra categorie sono "fixed" (fuori dal flusso normale). Ora che la
-    // schermata menu è finalmente visibile (prima, durante il login, era display:none
-    // e quindi "alta 0px" per il browser), ricalcoliamo per davvero le altezze:
-    // prima l'header (da cui dipende la posizione della barra categorie sotto di esso),
-    // poi lo spazio totale da lasciare come margine al contenuto.
+  function apriSchermataOrdina() {
+    mostraSchermata('schermata-menu');
+
+    // Header e barra categorie sono "fixed" (fuori dal flusso normale). Solo ora che la
+    // schermata menu è finalmente visibile (prima era display:none, quindi "alta 0px" per
+    // il browser) possiamo ricalcolare per davvero le altezze: prima l'header (da cui
+    // dipende la posizione della barra categorie sotto di esso), poi lo spazio totale da
+    // lasciare come margine al contenuto.
     requestAnimationFrame(() => {
       const header = document.querySelector('header.menu-header');
       const hHeader = header ? header.offsetHeight : 90;
@@ -1124,6 +1288,119 @@
       });
     });
   }
+
+  // ================= HOME / CHI SIAMO / CONTATTI =================
+
+  const IMMAGINI_CAROSELLO_HOME = ['/img/home/1.jpg', '/img/home/2.jpg', '/img/home/3.jpg', '/img/home/4.jpg', '/img/home/5.jpg'];
+  const IMMAGINI_GALLERIA_CHI_SIAMO = Array.from({ length: 15 }, (_, i) => `/img/chi-siamo/${i + 1}.jpg`);
+
+  // Testo "Chi siamo" del locale.
+  const TESTO_CHI_SIAMO = `La nostra ricerca per la bontà a misura di benessere vi porta in un mondo dove non esistono rinunce. Selezioniamo per te solo il meglio che la nostra terra ci offre e inventiamo quotidianamente nuovi modi di presentarveli. La grande attenzione al gusto, senza mai dimenticare semplicità e salute, sono le chiavi di #contantoamore. Chi lo dice che solo le cose cattive fanno bene? Siamo piccoli, ma con il cuore grande. Amiamo ricercare quei momenti in cui scocca la "scintilla" di piacere per il corpo e per la mente e regalarvela quando ci venite a trovare. Per questo siamo attenti a servirvi con la stessa dedizione con cui lo farebbe una madre, offrendovi il nostro sorriso e la nostra maggiore cortesia e attenzione. Chiamaci pure per nome! Noi siamo Agnese, Gabriele, Silvia...
+
+Così come il cibo avvicina le persone, le materie prime che scegliamo, sono vicine a voi. La frutta e la verdura che selezioniamo ogni mattina per voi sono il risultato del lavoro dei nostri contadini lucchesi. Cerchiamo di accorciare distanze aiutando l'ambiente, e promuovendo il patrimonio agroalimentare, oltre che a garantirvi sempre un prodotto fresco, sano e stagionale. Rispettiamo la qualità dei prodotti e soprattutto il gusto di tutti voi.
+
+La cucina non è solo ciò che mangiamo. O meglio: non è solo questo. È l'elaborazione di materie prime di qualità secondo le tecniche che abbiamo imparato. La nostra ambizione è quella di riuscire a servirvi un piatto semplice, onesto e gustoso. Ecco perché mettiamo in campo le nostre armi migliori: strumenti validi, materie prime di qualità e mani che mescolano ingredienti e fantasia.`;
+
+  let caroselloHomeInizializzato = false;
+  function inizializzaCaroselloHome() {
+    if (caroselloHomeInizializzato) return;
+    caroselloHomeInizializzato = true;
+
+    const track = document.getElementById('home-carosello');
+    const dots = document.getElementById('home-carosello-dots');
+    track.innerHTML = IMMAGINI_CAROSELLO_HOME.map((src, i) => `<img src="${src}" alt="" loading="${i === 0 ? 'eager' : 'lazy'}">`).join('');
+    dots.innerHTML = IMMAGINI_CAROSELLO_HOME.map((_, i) => `<span class="${i === 0 ? 'active' : ''}"></span>`).join('');
+
+    let scrollTicking = false;
+    track.addEventListener('scroll', () => {
+      if (scrollTicking) return;
+      scrollTicking = true;
+      requestAnimationFrame(() => {
+        const indice = Math.round(track.scrollLeft / track.clientWidth);
+        dots.querySelectorAll('span').forEach((d, i) => d.classList.toggle('active', i === indice));
+        scrollTicking = false;
+      });
+    });
+
+    // Scorrimento automatico ogni 4 secondi; si ferma se il cliente non è più sulla home.
+    setInterval(() => {
+      if (!document.getElementById('schermata-home').classList.contains('active')) return;
+      const prossimo = (Math.round(track.scrollLeft / track.clientWidth) + 1) % IMMAGINI_CAROSELLO_HOME.length;
+      track.scrollTo({ left: prossimo * track.clientWidth, behavior: 'smooth' });
+    }, 4000);
+  }
+
+  let chiSiamoInizializzato = false;
+  function apriChiSiamo() {
+    mostraSchermata('schermata-chi-siamo');
+    if (chiSiamoInizializzato) return;
+    chiSiamoInizializzato = true;
+    document.getElementById('chi-siamo-testo').textContent = TESTO_CHI_SIAMO;
+    document.getElementById('chi-siamo-galleria').innerHTML = IMMAGINI_GALLERIA_CHI_SIAMO
+      .map(src => `<img src="${src}" alt="" loading="lazy" onclick="ingrandisciFoto('${src}')">`).join('');
+  }
+  window.ingrandisciFoto = function(src) {
+    document.getElementById('foto-ingrandita-img').src = src;
+    openModal('modal-foto-ingrandita');
+  };
+
+  function apriContatti() {
+    mostraSchermata('schermata-contatti');
+    const cont = document.getElementById('contatti-contenuto');
+    if (!impostazioni) { cont.innerHTML = '<div class="empty-state">Informazioni non disponibili.</div>'; return; }
+
+    const via = impostazioni.indirizzo || '';
+    const capCitta = [impostazioni.cap, impostazioni.citta].filter(Boolean).join(' ');
+    const indirizzoCompleto = [via, capCitta].filter(Boolean).join(', ');
+    const righe = [];
+    if (indirizzoCompleto) {
+      const mapsUrl = 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(indirizzoCompleto);
+      righe.push(`<div class="contatti-riga"><span class="icona">📍</span><div><a href="${mapsUrl}" target="_blank" rel="noopener">${escapeHtml(indirizzoCompleto)}</a></div></div>`);
+    }
+    if (impostazioni.telefono) {
+      righe.push(`<div class="contatti-riga"><span class="icona">📞</span><div><a href="tel:${escapeHtml(impostazioni.telefono.replace(/\s+/g,''))}">${escapeHtml(impostazioni.telefono)}</a></div></div>`);
+    }
+    if (impostazioni.sito_web) {
+      const url = impostazioni.sito_web.startsWith('http') ? impostazioni.sito_web : 'https://' + impostazioni.sito_web;
+      righe.push(`<div class="contatti-riga"><span class="icona">🌐</span><div><a href="${escapeHtml(url)}" target="_blank" rel="noopener">${escapeHtml(impostazioni.sito_web)}</a></div></div>`);
+    }
+    cont.innerHTML = righe.length ? righe.join('') : '<div class="empty-state">Nessuna informazione di contatto disponibile.</div>';
+  }
+
+  // "Scarica il menu": genera una versione stampabile del menu completo (categorie e
+  // prodotti attuali) e apre la finestra di stampa del browser — da lì il cliente può
+  // scegliere "Salva come PDF" senza bisogno di un file pre-fatto da mantenere aggiornato.
+  function scaricaMenuPdf() {
+    const nomeLocale = (impostazioni && impostazioni.nome_locale) || document.getElementById('menu-nome-locale').textContent || 'Menu';
+    const sezioni = categorieTopLevel.map(cat => {
+      const idFiglie = figlieDiCategoria[cat.id] || [];
+      const idTutte = [cat.id, ...idFiglie];
+      const prodottiCat = prodottiList.filter(p => idTutte.includes(p.categoria_id));
+      if (!prodottiCat.length) return '';
+      const righe = prodottiCat.map(p => `
+        <div class="stampa-riga-prodotto">
+          <span>${escapeHtml(p.nome)}</span>
+          <span class="stampa-puntini"></span>
+          <span>${formatEuro(p.prezzo_base)}</span>
+        </div>
+      `).join('');
+      return `<div class="stampa-categoria"><h2>${escapeHtml(cat.nome)}</h2>${righe}</div>`;
+    }).join('');
+
+    const cont = document.getElementById('stampa-menu-contenuto');
+    cont.innerHTML = `<h1>${escapeHtml(nomeLocale)}</h1>${sezioni}`;
+    document.body.classList.add('stampa-menu-attiva');
+    window.print();
+    setTimeout(() => document.body.classList.remove('stampa-menu-attiva'), 500);
+  }
+
+  document.getElementById('tile-chi-siamo').addEventListener('click', apriChiSiamo);
+  document.getElementById('tile-ordina').addEventListener('click', apriSchermataOrdina);
+  document.getElementById('tile-area-personale').addEventListener('click', apriAccount);
+  document.getElementById('tile-scarica-menu').addEventListener('click', scaricaMenuPdf);
+  document.getElementById('tile-contatti').addEventListener('click', apriContatti);
+  document.getElementById('btn-account-home').addEventListener('click', apriAccount);
+  document.getElementById('btn-carrello-home').addEventListener('click', apriModalCarrello);
 
   function mostraNotificaGestoreSeAttiva() {
     if (!impostazioni || !impostazioni.notifica_attiva) return;
