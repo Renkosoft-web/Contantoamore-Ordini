@@ -199,14 +199,29 @@
   #stampa-menu-contenuto { display: none; }
   body.stampa-menu-attiva > *:not(#stampa-menu-contenuto) { display: none !important; }
   body.stampa-menu-attiva #stampa-menu-contenuto {
-    display: block; padding: 20px; font-family: 'Baloo 2', 'Segoe UI', sans-serif; color: #222;
+    display: block; padding: 24px; font-family: 'Baloo 2', 'Segoe UI', sans-serif; color: var(--ink);
+    background: var(--bg);
   }
-  #stampa-menu-contenuto h1 { font-size: 26px; margin-bottom: 18px; text-align: center; }
-  #stampa-menu-contenuto h2 { font-size: 18px; margin: 20px 0 8px; border-bottom: 2px solid #222; padding-bottom: 4px; }
-  .stampa-riga-prodotto { display: flex; align-items: baseline; gap: 6px; font-size: 14px; padding: 4px 0; }
+  .stampa-logo { display: block; max-width: 340px; width: 60%; margin: 0 auto 22px; }
+  #stampa-menu-contenuto h1 { font-size: 26px; margin-bottom: 18px; text-align: center; color: var(--verde); }
+  .stampa-categoria { margin-bottom: 22px; padding: 10px; border-radius: var(--radius); page-break-inside: avoid; }
+  .stampa-categoria h2 {
+    font-size: 20px; font-weight: 800; margin: 0 0 10px; color: var(--verde);
+    border-bottom: 2px solid var(--verde); padding-bottom: 6px;
+  }
+  .stampa-sottocategoria { margin-top: 12px; padding: 8px; border-radius: 8px; }
+  .stampa-sottocategoria h3 { font-size: 15px; font-weight: 700; margin: 0 0 6px; color: var(--verde); opacity: 0.85; }
+  .stampa-prodotto { display: flex; gap: 10px; padding: 7px 4px; align-items: flex-start; page-break-inside: avoid; }
+  .stampa-prodotto-img { width: 46px; height: 46px; object-fit: cover; border-radius: 6px; flex-shrink: 0; }
+  .stampa-prodotto-info { flex: 1; min-width: 0; }
+  .stampa-prodotto-riga { display: flex; align-items: baseline; gap: 6px; font-size: 14px; }
+  .stampa-prodotto-nome { font-weight: 700; }
+  .stampa-prodotto-prezzo { font-weight: 700; color: var(--accent); white-space: nowrap; }
+  .stampa-prodotto-desc { font-size: 12px; color: var(--ink-dim); margin-top: 2px; }
   .stampa-puntini { flex: 1; border-bottom: 1px dotted #999; margin: 0 4px; transform: translateY(-3px); }
   @media print {
-    body.stampa-menu-attiva #stampa-menu-contenuto { display: block; }
+    body.stampa-menu-attiva #stampa-menu-contenuto { display: block; background: #fff; }
+    .stampa-prodotto-img { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   }
 
   /* ---- Menu ---- */
@@ -689,7 +704,7 @@
   </div>
 </div>
 
-<div style="position:fixed; bottom:4px; right:6px; font-size:10px; color:#b2a878; z-index:1;">v2026-08-06-f (banner logo a tutta larghezza anche su login/iscrizione)</div>
+<div style="position:fixed; bottom:4px; right:6px; font-size:10px; color:#b2a878; z-index:1;">v2026-08-06-g (menu scaricabile fedele alla grafica del sito, con descrizioni e immagini)</div>
 
 <!-- ============ MODAL INSTALLA APP ============ -->
 <div class="modal-backdrop" id="modal-installa-app">
@@ -1411,23 +1426,66 @@ La cucina non è solo ciò che mangiamo. O meglio: non è solo questo. È l'elab
   // scegliere "Salva come PDF" senza bisogno di un file pre-fatto da mantenere aggiornato.
   function scaricaMenuPdf() {
     const nomeLocale = (impostazioni && impostazioni.nome_locale) || document.getElementById('menu-nome-locale').textContent || 'Menu';
+
+    const categorieById = {};
+    categorieList.forEach(c => { categorieById[c.id] = c; });
+
+    // Riga di UN prodotto per la stampa: nome, prezzo, descrizione (se c'è) e immagine
+    // (se c'è) — stessi dati e stessa "voce grafica" (colori/font categoria) del sito.
+    function prodottoStampaHtml(p, stileNomeProdotto) {
+      return `
+        <div class="stampa-prodotto">
+          ${p.immagine_url ? `<img src="${p.immagine_url}" class="stampa-prodotto-img">` : ''}
+          <div class="stampa-prodotto-info">
+            <div class="stampa-prodotto-riga">
+              <span class="stampa-prodotto-nome" style="${stileNomeProdotto}">${escapeHtml(p.nome)}</span>
+              <span class="stampa-puntini"></span>
+              <span class="stampa-prodotto-prezzo">${formatEuro(p.prezzo_base)}</span>
+            </div>
+            ${p.descrizione ? `<div class="stampa-prodotto-desc">${escapeHtml(p.descrizione)}</div>` : ''}
+          </div>
+        </div>
+      `;
+    }
+
+    // Blocco prodotti di UNA categoria (padre o figlia collegata), con i suoi colori propri
+    // — identica logica di renderBloccoProdotti usata a schermo, adattata alla stampa.
+    function bloccoStampa(g, eSottocategoria) {
+      const prodottiG = prodottiList.filter(p => p.categoria_id === g.id);
+      if (!prodottiG.length) return '';
+      const stileSezione = g.colore_sfondo_sezione ? `background-color:${g.colore_sfondo_sezione};` : '';
+      const stileTitolo = stileTitoloCategoria(g);
+      const stileNomeProdotto = g.colore_testo_prodotto ? `color:${g.colore_testo_prodotto};` : '';
+      const righe = prodottiG.map(p => prodottoStampaHtml(p, stileNomeProdotto)).join('');
+      if (eSottocategoria) {
+        return `<div class="stampa-sottocategoria" style="${stileSezione}"><h3 style="${stileTitolo}">${escapeHtml(g.nome)}</h3>${righe}</div>`;
+      }
+      return `<div style="${stileSezione}">${righe}</div>`;
+    }
+
     const sezioni = categorieTopLevel.map(cat => {
       const idFiglie = figlieDiCategoria[cat.id] || [];
-      const idTutte = [cat.id, ...idFiglie];
-      const prodottiCat = prodottiList.filter(p => idTutte.includes(p.categoria_id));
-      if (!prodottiCat.length) return '';
-      const righe = prodottiCat.map(p => `
-        <div class="stampa-riga-prodotto">
-          <span>${escapeHtml(p.nome)}</span>
-          <span class="stampa-puntini"></span>
-          <span>${formatEuro(p.prezzo_base)}</span>
+      const bloccoPadre = bloccoStampa(cat, false);
+      const blocchiFiglie = idFiglie.map(id => categorieById[id]).filter(Boolean)
+        .map(g => bloccoStampa(g, true)).join('');
+      if (!bloccoPadre.trim() && !blocchiFiglie.trim()) return '';
+
+      const stileSezionePadre = cat.colore_sfondo_sezione ? `background-color:${cat.colore_sfondo_sezione};` : '';
+      const stileTitoloPadre = stileTitoloCategoria(cat);
+      return `
+        <div class="stampa-categoria" style="${stileSezionePadre}">
+          <h2 style="${stileTitoloPadre}">${escapeHtml(cat.nome)}</h2>
+          ${bloccoPadre}
+          ${blocchiFiglie}
         </div>
-      `).join('');
-      return `<div class="stampa-categoria"><h2>${escapeHtml(cat.nome)}</h2>${righe}</div>`;
+      `;
     }).join('');
 
     const cont = document.getElementById('stampa-menu-contenuto');
-    cont.innerHTML = `<h1>${escapeHtml(nomeLocale)}</h1>${sezioni}`;
+    cont.innerHTML = `
+      ${impostazioni && impostazioni.logo_url ? `<img class="stampa-logo" src="${impostazioni.logo_url}">` : `<h1>${escapeHtml(nomeLocale)}</h1>`}
+      ${sezioni}
+    `;
     document.body.classList.add('stampa-menu-attiva');
     window.print();
     setTimeout(() => document.body.classList.remove('stampa-menu-attiva'), 500);
@@ -1578,6 +1636,19 @@ La cucina non è solo ciò che mangiamo. O meglio: non è solo questo. È l'elab
     });
   });
 
+  // Costruisce lo stile inline del titolo di una categoria/sottocategoria:
+  // colore testo, grassetto, grandezza font, allineamento, font-family.
+  // Condivisa tra il rendering del menu a schermo e la versione stampabile.
+  function stileTitoloCategoria(g) {
+    return [
+      g.colore_testo_categoria ? `color:${g.colore_testo_categoria};` : '',
+      g.grassetto_titolo_categoria ? 'font-weight:700;' : '',
+      g.dimensione_titolo_categoria ? `font-size:${g.dimensione_titolo_categoria}px;` : '',
+      g.allineamento_titolo_categoria ? `text-align:${g.allineamento_titolo_categoria};` : '',
+      g.font_titolo_categoria ? `font-family:${g.font_titolo_categoria};` : ''
+    ].join('');
+  }
+
   function renderMenu() {
     const main = document.getElementById('menu-main');
     if (!categorieTopLevel.length) {
@@ -1587,18 +1658,6 @@ La cucina non è solo ciò che mangiamo. O meglio: non è solo questo. È l'elab
 
     const categorieById = {};
     categorieList.forEach(c => { categorieById[c.id] = c; });
-
-    // Costruisce lo stile inline del titolo di una categoria/sottocategoria:
-    // colore testo, grassetto, grandezza font, allineamento, font-family.
-    function stileTitoloCategoria(g) {
-      return [
-        g.colore_testo_categoria ? `color:${g.colore_testo_categoria};` : '',
-        g.grassetto_titolo_categoria ? 'font-weight:700;' : '',
-        g.dimensione_titolo_categoria ? `font-size:${g.dimensione_titolo_categoria}px;` : '',
-        g.allineamento_titolo_categoria ? `text-align:${g.allineamento_titolo_categoria};` : '',
-        g.font_titolo_categoria ? `font-family:${g.font_titolo_categoria};` : ''
-      ].join('');
-    }
 
     // Renderizza i prodotti di UNA categoria (padre o figlia), con i SUOI colori propri.
     // Se e' una sottocategoria (idDiversoDalPadre = true) mostra anche il suo titolo.
