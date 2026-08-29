@@ -1735,8 +1735,12 @@
     const idVariazioni = (variazioniTenant || []).map(v => v.id);
 
     // Prima le tabelle "figlie" (collegamenti e opzioni), poi quelle "genitore",
-    // per rispettare le foreign key.
+    // per rispettare le foreign key. Le righe ordine già fatte (ordini_righe) non
+    // vengono toccate come record, ma scolleghiamo il riferimento al prodotto (che
+    // sta per essere eliminato): lo storico resta comunque leggibile perché ogni
+    // riga conserva già nome/prezzo/opzioni scelte al momento dell'ordine.
     const passi = [
+      { nome: 'riferimenti nello storico ordini', azione: () => idProdotti.length ? sbClient.from('ordini_righe').update({ prodotto_id: null }).in('prodotto_id', idProdotti) : Promise.resolve({ error: null }) },
       { nome: 'collegamenti prodotti-opzioni', azione: () => idProdotti.length ? sbClient.from('prodotti_opzioni_variazione').delete().in('prodotto_id', idProdotti) : Promise.resolve({ error: null }) },
       { nome: 'collegamenti categorie-variazioni', azione: () => idCategorie.length ? sbClient.from('categorie_variazioni_ricerca').delete().in('categoria_id', idCategorie) : Promise.resolve({ error: null }) },
       { nome: 'opzioni variazione', azione: () => idVariazioni.length ? sbClient.from('opzioni_variazione').delete().in('variazione_id', idVariazioni) : Promise.resolve({ error: null }) },
