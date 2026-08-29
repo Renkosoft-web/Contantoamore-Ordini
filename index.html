@@ -577,15 +577,30 @@
         </div>
 
         <div style="background:var(--panel); border:1px solid rgba(217,97,79,0.4); border-radius:var(--radius); padding:20px;">
-          <h3 style="margin-top:0; color:var(--error);">🗑 Pulisci tutto il menu</h3>
-          <p class="meta">Elimina <strong>tutte</strong> le categorie, i prodotti e i gruppi variazione. Non tocca ordini, clienti, stampanti né le impostazioni del locale. Utile prima di ricaricare un backup vecchio o di ripartire da zero con una nuova importazione.</p>
+          <h3 style="margin-top:0; color:var(--error);">🗑 Pulisci menu</h3>
+          <p class="meta">Non tocca mai ordini, clienti, stampanti né le impostazioni del locale.</p>
           <p class="meta" style="color:var(--error); font-weight:600;">Questa azione non si può annullare. Ti consigliamo di scaricare prima un backup.</p>
-          <label for="conferma-pulisci" style="margin-top:12px;">Scrivi <strong>ELIMINA</strong> per confermare</label>
+
+          <label style="margin-top:12px;">Cosa vuoi eliminare?</label>
+          <label style="display:flex; align-items:flex-start; gap:8px; margin-top:8px; font-weight:400;">
+            <input type="radio" name="pulisci-scope" value="prodotti" style="width:auto; margin-top:3px;" checked>
+            <span><strong>Solo prodotti</strong> — categorie e gruppi variazione restano intatti (li riusi per una nuova importazione)</span>
+          </label>
+          <label style="display:flex; align-items:flex-start; gap:8px; margin-top:8px; font-weight:400;">
+            <input type="radio" name="pulisci-scope" value="prodotti_categorie" style="width:auto; margin-top:3px;">
+            <span><strong>Prodotti e categorie</strong> — i gruppi variazione (es. "Extra ingredienti") restano, pronti da ricollegare</span>
+          </label>
+          <label style="display:flex; align-items:flex-start; gap:8px; margin-top:8px; font-weight:400;">
+            <input type="radio" name="pulisci-scope" value="tutto" style="width:auto; margin-top:3px;">
+            <span><strong>Tutto</strong> — prodotti, categorie e gruppi variazione</span>
+          </label>
+
+          <label for="conferma-pulisci" style="margin-top:16px;">Scrivi <strong>ELIMINA</strong> per confermare</label>
           <input type="text" id="conferma-pulisci" placeholder="ELIMINA" style="max-width:200px;">
           <label style="display:flex; align-items:center; gap:8px; margin-top:12px;">
-            <input type="checkbox" id="pulisci-anche-immagini" style="width:auto;"> Elimina anche le immagini caricate (categorie e prodotti)
+            <input type="checkbox" id="pulisci-anche-immagini" style="width:auto;"> Elimina anche le immagini caricate (categorie e prodotti, in base a cosa scegli sopra)
           </label>
-          <button type="button" class="danger" id="btn-pulisci-tutto" style="margin-top:14px;">Elimina tutto il menu</button>
+          <button type="button" class="danger" id="btn-pulisci-tutto" style="margin-top:14px;">Elimina</button>
           <div id="pulisci-progresso" style="display:none; margin-top:10px;">
             <div style="background:var(--panel-2); border-radius:8px; height:10px; overflow:hidden;">
               <div id="pulisci-barra" style="background:var(--error); height:100%; width:0%; transition:width 0.2s;"></div>
@@ -1716,7 +1731,13 @@
       showMsg('pulisci-msg', 'Scrivi ELIMINA nel campo per confermare.', 'error');
       return;
     }
-    if (!confirm('Ultima conferma: eliminare TUTTO il menu (categorie, prodotti, variazioni)? Non si può annullare.')) return;
+    const scope = document.querySelector('input[name="pulisci-scope"]:checked').value; // 'prodotti' | 'prodotti_categorie' | 'tutto'
+    const etichetteScope = {
+      prodotti: 'SOLO I PRODOTTI',
+      prodotti_categorie: 'PRODOTTI E CATEGORIE',
+      tutto: 'TUTTO (prodotti, categorie e gruppi variazione)'
+    };
+    if (!confirm(`Ultima conferma: eliminare ${etichetteScope[scope]}? Non si può annullare.`)) return;
 
     const btn = document.getElementById('btn-pulisci-tutto');
     btn.disabled = true;
@@ -1739,15 +1760,24 @@
     // vengono toccate come record, ma scolleghiamo il riferimento al prodotto (che
     // sta per essere eliminato): lo storico resta comunque leggibile perché ogni
     // riga conserva già nome/prezzo/opzioni scelte al momento dell'ordine.
+    // I passi vengono scelti in base a cosa si vuole eliminare: "prodotti" tocca solo
+    // prodotti e i loro collegamenti; "prodotti_categorie" aggiunge le categorie (e i
+    // loro collegamenti ai gruppi variazione); "tutto" elimina anche i gruppi variazione.
     const passi = [
       { nome: 'riferimenti nello storico ordini', azione: () => idProdotti.length ? sbClient.rpc('pulisci_riferimenti_prodotti', { prodotto_ids: idProdotti }) : Promise.resolve({ error: null }) },
-      { nome: 'collegamenti prodotti-opzioni', azione: () => idProdotti.length ? sbClient.from('prodotti_opzioni_variazione').delete().in('prodotto_id', idProdotti) : Promise.resolve({ error: null }) },
-      { nome: 'collegamenti categorie-variazioni', azione: () => idCategorie.length ? sbClient.from('categorie_variazioni_ricerca').delete().in('categoria_id', idCategorie) : Promise.resolve({ error: null }) },
-      { nome: 'opzioni variazione', azione: () => idVariazioni.length ? sbClient.from('opzioni_variazione').delete().in('variazione_id', idVariazioni) : Promise.resolve({ error: null }) },
-      { nome: 'gruppi variazione', azione: () => sbClient.from('variazioni').delete().eq('tenant_id', currentTenantId) },
-      { nome: 'prodotti', azione: () => sbClient.from('prodotti').delete().eq('tenant_id', currentTenantId) },
-      { nome: 'categorie', azione: () => sbClient.from('categorie').delete().eq('tenant_id', currentTenantId) }
+      { nome: 'collegamenti prodotti-opzioni', azione: () => idProdotti.length ? sbClient.from('prodotti_opzioni_variazione').delete().in('prodotto_id', idProdotti) : Promise.resolve({ error: null }) }
     ];
+    if (scope === 'prodotti_categorie' || scope === 'tutto') {
+      passi.push({ nome: 'collegamenti categorie-variazioni', azione: () => idCategorie.length ? sbClient.from('categorie_variazioni_ricerca').delete().in('categoria_id', idCategorie) : Promise.resolve({ error: null }) });
+    }
+    if (scope === 'tutto') {
+      passi.push({ nome: 'opzioni variazione', azione: () => idVariazioni.length ? sbClient.from('opzioni_variazione').delete().in('variazione_id', idVariazioni) : Promise.resolve({ error: null }) });
+      passi.push({ nome: 'gruppi variazione', azione: () => sbClient.from('variazioni').delete().eq('tenant_id', currentTenantId) });
+    }
+    passi.push({ nome: 'prodotti', azione: () => sbClient.from('prodotti').delete().eq('tenant_id', currentTenantId) });
+    if (scope === 'prodotti_categorie' || scope === 'tutto') {
+      passi.push({ nome: 'categorie', azione: () => sbClient.from('categorie').delete().eq('tenant_id', currentTenantId) });
+    }
 
     let erroreGlobale = null;
     for (let i = 0; i < passi.length; i++) {
@@ -1762,7 +1792,9 @@
       try {
         // Stesse cartelle usate dalla galleria "Immagini" (esclusa "settings": logo/sfondo
         // sono impostazioni del locale, non contenuto del menu, e restano intoccate).
-        const cartelle = [currentTenantId, `${currentTenantId}/categorie`];
+        // La cartella "categorie" si elimina solo se lo scope include le categorie.
+        const cartelle = [currentTenantId];
+        if (scope === 'prodotti_categorie' || scope === 'tutto') cartelle.push(`${currentTenantId}/categorie`);
         for (const prefisso of cartelle) {
           const { data } = await sbClient.storage.from(BUCKET).list(prefisso, { limit: 1000 });
           const file = (data || []).filter(f => f.id !== null);
@@ -1782,8 +1814,8 @@
       stato.textContent = 'Interrotto per un errore.';
       showMsg('pulisci-msg', 'Errore: ' + erroreGlobale, 'error');
     } else {
-      stato.textContent = 'Fatto. Il menu è stato eliminato.';
-      showMsg('pulisci-msg', 'Menu eliminato con successo.', 'ok');
+      stato.textContent = 'Fatto.';
+      showMsg('pulisci-msg', 'Eliminazione completata con successo.', 'ok');
       await caricaCategorie();
       await caricaProdotti();
       await caricaVariazioniGruppi();
