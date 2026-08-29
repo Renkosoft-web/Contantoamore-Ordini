@@ -337,6 +337,7 @@
     <button class="tab" data-section="scontrino">Scontrino</button>
     <button class="tab" data-section="immagini">Immagini</button>
     <button class="tab" data-section="impostazioni">Impostazioni</button>
+    <button class="tab" data-section="backup">Backup</button>
   </nav>
 
   <main>
@@ -344,7 +345,10 @@
     <section class="section active" id="section-categorie">
       <div class="section-header">
         <h2>Categorie</h2>
-        <button id="btn-nuova-categoria">+ Nuova categoria</button>
+        <div style="display:flex; gap:8px;">
+          <button type="button" class="secondary" id="btn-importa-cartella">📥 Importa da cartella</button>
+          <button id="btn-nuova-categoria">+ Nuova categoria</button>
+        </div>
       </div>
       <div id="lista-categorie"></div>
     </section>
@@ -543,6 +547,55 @@
         </div>
       </div>
     </section>
+
+    <!-- ---- BACKUP ---- -->
+    <section class="section" id="section-backup">
+      <div class="section-header">
+        <h2>Backup</h2>
+      </div>
+
+      <div style="max-width:640px;">
+        <div style="background:var(--panel); border:1px solid var(--border); border-radius:var(--radius); padding:20px; margin-bottom:20px;">
+          <h3 style="margin-top:0;">📦 Scarica backup</h3>
+          <p class="meta">Salva un file con l'intero menu (categorie, prodotti, variazioni e collegamenti). Non include ordini, clienti né immagini vere e proprie (restano quelle già caricate online, il backup salva solo i link).</p>
+          <button type="button" id="btn-scarica-backup" style="margin-top:10px;">Scarica backup (.json)</button>
+        </div>
+
+        <div style="background:var(--panel); border:1px solid var(--border); border-radius:var(--radius); padding:20px; margin-bottom:20px;">
+          <h3 style="margin-top:0;">📤 Ripristina da backup</h3>
+          <p class="meta">Carica un file di backup scaricato in precedenza. <strong>Sostituisce completamente</strong> il menu attuale: se c'è già qualcosa, ti verrà chiesto di confermare, ed è consigliabile prima "Pulire tutto" (qui sotto) per evitare doppioni.</p>
+          <input type="file" id="input-ripristina-backup" accept="application/json" style="margin-top:10px;">
+          <div id="ripristina-anteprima" class="meta" style="margin-top:10px; display:none;"></div>
+          <button type="button" id="btn-ripristina-backup" style="margin-top:10px;" disabled>Ripristina questo backup</button>
+          <div id="ripristina-progresso" style="display:none; margin-top:10px;">
+            <div style="background:var(--panel-2); border-radius:8px; height:10px; overflow:hidden;">
+              <div id="ripristina-barra" style="background:var(--accent); height:100%; width:0%; transition:width 0.2s;"></div>
+            </div>
+            <p class="meta" id="ripristina-stato" style="margin-top:6px;"></p>
+          </div>
+          <div class="msg" id="ripristina-msg"></div>
+        </div>
+
+        <div style="background:var(--panel); border:1px solid rgba(217,97,79,0.4); border-radius:var(--radius); padding:20px;">
+          <h3 style="margin-top:0; color:var(--error);">🗑 Pulisci tutto il menu</h3>
+          <p class="meta">Elimina <strong>tutte</strong> le categorie, i prodotti e i gruppi variazione. Non tocca ordini, clienti, stampanti né le impostazioni del locale. Utile prima di ricaricare un backup vecchio o di ripartire da zero con una nuova importazione.</p>
+          <p class="meta" style="color:var(--error); font-weight:600;">Questa azione non si può annullare. Ti consigliamo di scaricare prima un backup.</p>
+          <label for="conferma-pulisci" style="margin-top:12px;">Scrivi <strong>ELIMINA</strong> per confermare</label>
+          <input type="text" id="conferma-pulisci" placeholder="ELIMINA" style="max-width:200px;">
+          <label style="display:flex; align-items:center; gap:8px; margin-top:12px;">
+            <input type="checkbox" id="pulisci-anche-immagini" style="width:auto;"> Elimina anche le immagini caricate (categorie e prodotti)
+          </label>
+          <button type="button" class="danger" id="btn-pulisci-tutto" style="margin-top:14px;">Elimina tutto il menu</button>
+          <div id="pulisci-progresso" style="display:none; margin-top:10px;">
+            <div style="background:var(--panel-2); border-radius:8px; height:10px; overflow:hidden;">
+              <div id="pulisci-barra" style="background:var(--error); height:100%; width:0%; transition:width 0.2s;"></div>
+            </div>
+            <p class="meta" id="pulisci-stato" style="margin-top:6px;"></p>
+          </div>
+          <div class="msg" id="pulisci-msg"></div>
+        </div>
+      </div>
+    </section>
   </main>
 </div>
 
@@ -665,6 +718,33 @@
         <button type="submit" id="btn-salva-categoria">Salva</button>
       </div>
     </form>
+  </div>
+</div>
+
+<!-- ============ MODAL IMPORTA DA CARTELLA ============ -->
+<div class="modal-backdrop" id="modal-importa-cartella">
+  <div class="modal" style="max-width:820px;">
+    <h3>Importa da cartella</h3>
+    <p class="meta">Seleziona la cartella "Menu Glovo ..." scaricata con lo strumento — quella che contiene una sottocartella per categoria, e dentro una sottocartella per prodotto con <code>immagine.jpg</code> e <code>descrizione.txt</code>.</p>
+    <input type="file" id="importa-input-cartella" webkitdirectory multiple style="margin:14px 0; width:100%;">
+
+    <div id="importa-riepilogo" style="display:none;">
+      <p style="font-weight:600; margin-bottom:8px;" id="importa-conteggio"></p>
+      <div id="importa-anteprima" style="max-height:360px; overflow-y:auto; border:1px solid var(--border); border-radius:8px; padding:4px;"></div>
+    </div>
+
+    <div id="importa-progresso" style="display:none; margin-top:14px;">
+      <div style="background:var(--panel-2); border-radius:8px; height:10px; overflow:hidden;">
+        <div id="importa-barra" style="background:var(--accent); height:100%; width:0%; transition:width 0.2s;"></div>
+      </div>
+      <p class="meta" id="importa-stato" style="margin-top:6px;"></p>
+    </div>
+
+    <div class="msg" id="importa-cartella-msg"></div>
+    <div class="modal-actions">
+      <button type="button" class="secondary" onclick="closeModal('modal-importa-cartella')">Annulla</button>
+      <button type="button" id="btn-conferma-importa" disabled>Importa tutto</button>
+    </div>
   </div>
 </div>
 
@@ -1501,6 +1581,411 @@
     if (!prodottiCategoria.length) return 0;
     return Math.max(...prodottiCategoria.map(p => p.ordine_visualizzazione || 0)) + 1;
   }
+
+  // ================= BACKUP / RIPRISTINO / PULIZIA MENU =================
+
+  document.getElementById('btn-scarica-backup').addEventListener('click', async () => {
+    const btn = document.getElementById('btn-scarica-backup');
+    btn.disabled = true;
+    const testoOriginale = btn.textContent;
+    btn.textContent = 'Preparo il backup...';
+
+    try {
+      const { data: categorie } = await sbClient.from('categorie').select('*').eq('tenant_id', currentTenantId);
+      const { data: prodotti } = await sbClient.from('prodotti').select('*').eq('tenant_id', currentTenantId);
+      const { data: variazioni } = await sbClient.from('variazioni').select('*').eq('tenant_id', currentTenantId);
+
+      const idVariazioni = (variazioni || []).map(v => v.id);
+      const idProdotti = (prodotti || []).map(p => p.id);
+      const idCategorie = (categorie || []).map(c => c.id);
+
+      const [{ data: opzioniVariazione }, { data: prodottiOpzioni }, { data: categorieVariazioniRicerca }] = await Promise.all([
+        idVariazioni.length ? sbClient.from('opzioni_variazione').select('*').in('variazione_id', idVariazioni) : Promise.resolve({ data: [] }),
+        idProdotti.length ? sbClient.from('prodotti_opzioni_variazione').select('*').in('prodotto_id', idProdotti) : Promise.resolve({ data: [] }),
+        idCategorie.length ? sbClient.from('categorie_variazioni_ricerca').select('*').in('categoria_id', idCategorie) : Promise.resolve({ data: [] })
+      ]);
+
+      const backup = {
+        versione: 1,
+        generato_il: new Date().toISOString(),
+        tenant_id: currentTenantId,
+        categorie: categorie || [],
+        prodotti: prodotti || [],
+        variazioni: variazioni || [],
+        opzioni_variazione: opzioniVariazione || [],
+        prodotti_opzioni_variazione: prodottiOpzioni || [],
+        categorie_variazioni_ricerca: categorieVariazioniRicerca || []
+      };
+
+      const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `backup-menu-${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      alert('Errore preparando il backup: ' + err.message);
+    }
+
+    btn.disabled = false;
+    btn.textContent = testoOriginale;
+  });
+
+  let backupCaricato = null;
+
+  document.getElementById('input-ripristina-backup').addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    const anteprima = document.getElementById('ripristina-anteprima');
+    const btn = document.getElementById('btn-ripristina-backup');
+    backupCaricato = null;
+    btn.disabled = true;
+    anteprima.style.display = 'none';
+    clearMsg('ripristina-msg');
+    if (!file) return;
+
+    try {
+      const testo = await file.text();
+      const dati = JSON.parse(testo);
+      if (!Array.isArray(dati.categorie) || !Array.isArray(dati.prodotti)) {
+        throw new Error('Il file non sembra un backup valido di questo sistema.');
+      }
+      backupCaricato = dati;
+      const dataBackup = dati.generato_il ? new Date(dati.generato_il).toLocaleString('it-IT') : 'data sconosciuta';
+      anteprima.textContent = `Backup del ${dataBackup}: ${dati.categorie.length} categorie, ${dati.prodotti.length} prodotti, ${(dati.variazioni || []).length} gruppi variazione.`;
+      anteprima.style.display = 'block';
+      btn.disabled = false;
+    } catch (err) {
+      showMsg('ripristina-msg', 'File non valido: ' + err.message, 'error');
+    }
+  });
+
+  document.getElementById('btn-ripristina-backup').addEventListener('click', async () => {
+    if (!backupCaricato) return;
+    if (!confirm('Ripristinare questo backup? Sovrascriverà eventuali categorie/prodotti già presenti con lo stesso ID. Se non hai ancora pulito il menu attuale, i due potrebbero mescolarsi.')) return;
+
+    const btn = document.getElementById('btn-ripristina-backup');
+    btn.disabled = true;
+    clearMsg('ripristina-msg');
+    document.getElementById('ripristina-progresso').style.display = 'block';
+    const barra = document.getElementById('ripristina-barra');
+    const stato = document.getElementById('ripristina-stato');
+
+    // Ordine importante: prima le tabelle "genitore" (categorie, variazioni, prodotti),
+    // poi quelle che le referenziano (opzioni e collegamenti), per rispettare le foreign key.
+    // tenant_id viene sempre riscritto su quello corrente, per sicurezza.
+    const passi = [
+      { nome: 'categorie', tabella: 'categorie', righe: (backupCaricato.categorie || []).map(r => ({ ...r, tenant_id: currentTenantId })) },
+      { nome: 'gruppi variazione', tabella: 'variazioni', righe: (backupCaricato.variazioni || []).map(r => ({ ...r, tenant_id: currentTenantId })) },
+      { nome: 'prodotti', tabella: 'prodotti', righe: (backupCaricato.prodotti || []).map(r => ({ ...r, tenant_id: currentTenantId })) },
+      { nome: 'opzioni variazione', tabella: 'opzioni_variazione', righe: backupCaricato.opzioni_variazione || [] },
+      { nome: 'collegamenti prodotti-opzioni', tabella: 'prodotti_opzioni_variazione', righe: backupCaricato.prodotti_opzioni_variazione || [] },
+      { nome: 'collegamenti categorie-variazioni', tabella: 'categorie_variazioni_ricerca', righe: backupCaricato.categorie_variazioni_ricerca || [] }
+    ];
+
+    let erroreGlobale = null;
+    for (let i = 0; i < passi.length; i++) {
+      const passo = passi[i];
+      stato.textContent = `Ripristino ${passo.nome} (${passo.righe.length})...`;
+      barra.style.width = Math.round((i / passi.length) * 100) + '%';
+      if (passo.righe.length) {
+        const { error } = await sbClient.from(passo.tabella).upsert(passo.righe);
+        if (error) { erroreGlobale = `${passo.nome}: ${error.message}`; break; }
+      }
+    }
+    barra.style.width = '100%';
+
+    if (erroreGlobale) {
+      stato.textContent = 'Ripristino interrotto per un errore.';
+      showMsg('ripristina-msg', 'Errore durante il ripristino: ' + erroreGlobale, 'error');
+    } else {
+      stato.textContent = 'Ripristino completato.';
+      showMsg('ripristina-msg', 'Backup ripristinato con successo.', 'ok');
+      await caricaCategorie();
+      await caricaProdotti();
+      await caricaVariazioniGruppi();
+    }
+    btn.disabled = false;
+  });
+
+  document.getElementById('btn-pulisci-tutto').addEventListener('click', async () => {
+    const conferma = document.getElementById('conferma-pulisci').value.trim();
+    if (conferma !== 'ELIMINA') {
+      showMsg('pulisci-msg', 'Scrivi ELIMINA nel campo per confermare.', 'error');
+      return;
+    }
+    if (!confirm('Ultima conferma: eliminare TUTTO il menu (categorie, prodotti, variazioni)? Non si può annullare.')) return;
+
+    const btn = document.getElementById('btn-pulisci-tutto');
+    btn.disabled = true;
+    clearMsg('pulisci-msg');
+    document.getElementById('pulisci-progresso').style.display = 'block';
+    const barra = document.getElementById('pulisci-barra');
+    const stato = document.getElementById('pulisci-stato');
+    const eliminaImmaginiAnche = document.getElementById('pulisci-anche-immagini').checked;
+
+    stato.textContent = 'Preparo la lista di ciò che va eliminato...';
+    const { data: categorieTenant } = await sbClient.from('categorie').select('id').eq('tenant_id', currentTenantId);
+    const { data: prodottiTenant } = await sbClient.from('prodotti').select('id').eq('tenant_id', currentTenantId);
+    const { data: variazioniTenant } = await sbClient.from('variazioni').select('id').eq('tenant_id', currentTenantId);
+    const idCategorie = (categorieTenant || []).map(c => c.id);
+    const idProdotti = (prodottiTenant || []).map(p => p.id);
+    const idVariazioni = (variazioniTenant || []).map(v => v.id);
+
+    // Prima le tabelle "figlie" (collegamenti e opzioni), poi quelle "genitore",
+    // per rispettare le foreign key.
+    const passi = [
+      { nome: 'collegamenti prodotti-opzioni', azione: () => idProdotti.length ? sbClient.from('prodotti_opzioni_variazione').delete().in('prodotto_id', idProdotti) : Promise.resolve({ error: null }) },
+      { nome: 'collegamenti categorie-variazioni', azione: () => idCategorie.length ? sbClient.from('categorie_variazioni_ricerca').delete().in('categoria_id', idCategorie) : Promise.resolve({ error: null }) },
+      { nome: 'opzioni variazione', azione: () => idVariazioni.length ? sbClient.from('opzioni_variazione').delete().in('variazione_id', idVariazioni) : Promise.resolve({ error: null }) },
+      { nome: 'gruppi variazione', azione: () => sbClient.from('variazioni').delete().eq('tenant_id', currentTenantId) },
+      { nome: 'prodotti', azione: () => sbClient.from('prodotti').delete().eq('tenant_id', currentTenantId) },
+      { nome: 'categorie', azione: () => sbClient.from('categorie').delete().eq('tenant_id', currentTenantId) }
+    ];
+
+    let erroreGlobale = null;
+    for (let i = 0; i < passi.length; i++) {
+      stato.textContent = `Elimino ${passi[i].nome}...`;
+      barra.style.width = Math.round((i / passi.length) * 100) + '%';
+      const risultato = await passi[i].azione();
+      if (risultato && risultato.error) { erroreGlobale = `${passi[i].nome}: ${risultato.error.message}`; break; }
+    }
+
+    if (!erroreGlobale && eliminaImmaginiAnche) {
+      stato.textContent = 'Elimino le immagini caricate...';
+      try {
+        // Stesse cartelle usate dalla galleria "Immagini" (esclusa "settings": logo/sfondo
+        // sono impostazioni del locale, non contenuto del menu, e restano intoccate).
+        const cartelle = [currentTenantId, `${currentTenantId}/categorie`];
+        for (const prefisso of cartelle) {
+          const { data } = await sbClient.storage.from(BUCKET).list(prefisso, { limit: 1000 });
+          const file = (data || []).filter(f => f.id !== null);
+          if (file.length) {
+            await sbClient.storage.from(BUCKET).remove(file.map(f => `${prefisso}/${f.name}`));
+          }
+        }
+      } catch (e) {
+        console.error('Errore eliminando le immagini', e);
+      }
+    }
+
+    barra.style.width = '100%';
+    document.getElementById('conferma-pulisci').value = '';
+
+    if (erroreGlobale) {
+      stato.textContent = 'Interrotto per un errore.';
+      showMsg('pulisci-msg', 'Errore: ' + erroreGlobale, 'error');
+    } else {
+      stato.textContent = 'Fatto. Il menu è stato eliminato.';
+      showMsg('pulisci-msg', 'Menu eliminato con successo.', 'ok');
+      await caricaCategorie();
+      await caricaProdotti();
+      await caricaVariazioniGruppi();
+    }
+    btn.disabled = false;
+  });
+
+  // ================= IMPORTA DA CARTELLA (Glovo/Deliveroo/JustEat scaricati) =================
+  let importaDati = []; // [{categoria, prodotto, prezzo, descrizione, imageFile, incluso}]
+
+  document.getElementById('btn-importa-cartella').addEventListener('click', () => {
+    importaDati = [];
+    document.getElementById('importa-input-cartella').value = '';
+    document.getElementById('importa-riepilogo').style.display = 'none';
+    document.getElementById('importa-progresso').style.display = 'none';
+    document.getElementById('importa-barra').style.width = '0%';
+    document.getElementById('btn-conferma-importa').disabled = true;
+    clearMsg('importa-cartella-msg');
+    openModal('modal-importa-cartella');
+  });
+
+  // Legge "Prezzo: 18,00 €" e la descrizione da un file descrizione.txt
+  // (stesso formato scritto dallo script Python/AHK di download).
+  function parseDescrizioneTxt(testo) {
+    const righe = testo.split(/\r?\n/);
+    const idxPrezzo = righe.findIndex(r => r.trim().toLowerCase().startsWith('prezzo:'));
+    let prezzo = '';
+    let descrizione = '';
+    if (idxPrezzo >= 0) {
+      prezzo = righe[idxPrezzo].split(':').slice(1).join(':').trim();
+      let resto = righe.slice(idxPrezzo + 1);
+      while (resto.length && resto[0].trim() === '') resto.shift();
+      descrizione = resto.join('\n').trim();
+    }
+    return { prezzo, descrizione };
+  }
+
+  // "18,00 €" -> 18 ; gestisce anche formati senza simbolo euro o con il punto come decimale
+  function prezzoToNumero(prezzoTesto) {
+    const pulito = (prezzoTesto || '').replace(/[^\d,.-]/g, '').replace(',', '.');
+    const n = parseFloat(pulito);
+    return isNaN(n) ? 0 : n;
+  }
+
+  document.getElementById('importa-input-cartella').addEventListener('change', (e) => {
+    const files = Array.from(e.target.files);
+    const gruppi = {};
+
+    files.forEach(file => {
+      // Percorso tipo: "Menu Glovo ContantoAmore/Primi/Tagliere misto/immagine.jpg"
+      const parti = file.webkitRelativePath.split('/');
+      if (parti.length < 4) return; // fuori struttura attesa (es. riepilogo_menu.csv nella radice)
+      const categoria = parti[1];
+      const prodotto = parti[2];
+      const nomeFile = parti[3];
+      const chiave = categoria + '|||' + prodotto;
+      if (!gruppi[chiave]) gruppi[chiave] = { categoria, prodotto, imageFile: null, descFile: null };
+      if (/\.(jpe?g|png|webp)$/i.test(nomeFile)) gruppi[chiave].imageFile = file;
+      else if (nomeFile.toLowerCase() === 'descrizione.txt') gruppi[chiave].descFile = file;
+    });
+
+    const elenco = Object.values(gruppi);
+    Promise.all(elenco.map(async g => {
+      if (g.descFile) {
+        const testo = await g.descFile.text();
+        const parsed = parseDescrizioneTxt(testo);
+        g.prezzo = parsed.prezzo;
+        g.descrizione = parsed.descrizione;
+      } else {
+        g.prezzo = '';
+        g.descrizione = '';
+      }
+      g.incluso = true;
+      return g;
+    })).then(risultati => {
+      importaDati = risultati;
+      renderAnteprimaImporta();
+    });
+  });
+
+  function renderAnteprimaImporta() {
+    const cont = document.getElementById('importa-anteprima');
+    const perCategoria = {};
+    importaDati.forEach((g, i) => {
+      if (!perCategoria[g.categoria]) perCategoria[g.categoria] = [];
+      perCategoria[g.categoria].push({ ...g, indice: i });
+    });
+
+    cont.innerHTML = Object.entries(perCategoria).map(([categoria, prodotti]) => `
+      <div style="margin-bottom:14px;">
+        <div style="font-weight:700; margin-bottom:6px; color:var(--accent);">${escapeHtml(categoria)} (${prodotti.length})</div>
+        ${prodotti.map(p => `
+          <label style="display:flex; gap:10px; align-items:center; padding:6px 4px; border-bottom:1px solid var(--border); cursor:pointer;">
+            <input type="checkbox" class="chk-importa-item" data-indice="${p.indice}" checked style="width:auto;">
+            ${p.imageFile
+              ? `<img src="${URL.createObjectURL(p.imageFile)}" style="width:40px; height:40px; object-fit:cover; border-radius:6px; flex-shrink:0;">`
+              : `<div style="width:40px; height:40px; background:var(--panel-2); border-radius:6px; flex-shrink:0;"></div>`}
+            <div style="flex:1; min-width:0;">
+              <div style="font-weight:600;">${escapeHtml(p.prodotto)} <span style="color:var(--ink-dim); font-weight:400;">${escapeHtml(p.prezzo || '')}</span></div>
+              ${p.descrizione ? `<div class="meta">${escapeHtml(p.descrizione)}</div>` : ''}
+            </div>
+          </label>
+        `).join('')}
+      </div>
+    `).join('');
+
+    document.getElementById('importa-conteggio').textContent =
+      `${importaDati.length} prodotti trovati in ${Object.keys(perCategoria).length} categorie. Deseleziona quelli che non vuoi importare.`;
+    document.getElementById('importa-riepilogo').style.display = 'block';
+    document.getElementById('btn-conferma-importa').disabled = importaDati.length === 0;
+
+    cont.querySelectorAll('.chk-importa-item').forEach(chk => {
+      chk.addEventListener('change', () => {
+        importaDati[chk.dataset.indice].incluso = chk.checked;
+      });
+    });
+  }
+
+  document.getElementById('btn-conferma-importa').addEventListener('click', async () => {
+    const daImportare = importaDati.filter(g => g.incluso !== false);
+    if (!daImportare.length) return;
+
+    const btn = document.getElementById('btn-conferma-importa');
+    btn.disabled = true;
+    clearMsg('importa-cartella-msg');
+    document.getElementById('importa-progresso').style.display = 'block';
+    const barra = document.getElementById('importa-barra');
+    const stato = document.getElementById('importa-stato');
+
+    // Categorie già esistenti (per nome, senza distinzione maiuscole/minuscole) -> id.
+    // Le categorie nuove trovate nella cartella vengono create al volo la prima volta
+    // che compaiono, poi riusate per i prodotti successivi della stessa categoria.
+    const categorieEsistenti = {};
+    categorieCache.forEach(c => { categorieEsistenti[c.nome.trim().toLowerCase()] = c.id; });
+    let prossimoOrdineCategoria = categorieCache.length
+      ? Math.max(...categorieCache.map(c => c.ordine_visualizzazione || 0)) + 1 : 0;
+
+    // Contatore locale dell'ordine prodotti per categoria, per non dover ricaricare
+    // prodottiCache ad ogni singolo inserimento durante il ciclo.
+    const contatoriOrdineProdotto = {};
+    function prossimoOrdineProdotto(categoriaId) {
+      if (!(categoriaId in contatoriOrdineProdotto)) {
+        contatoriOrdineProdotto[categoriaId] = calcolaProssimoOrdineProdotto(categoriaId);
+      }
+      return contatoriOrdineProdotto[categoriaId]++;
+    }
+
+    let fatti = 0, errori = 0;
+    const totale = daImportare.length;
+
+    for (const g of daImportare) {
+      fatti++;
+      stato.textContent = `[${fatti}/${totale}] ${g.categoria} / ${g.prodotto}`;
+      barra.style.width = Math.round(fatti / totale * 100) + '%';
+
+      try {
+        const chiaveCategoria = g.categoria.trim().toLowerCase();
+        let categoriaId = categorieEsistenti[chiaveCategoria];
+        if (!categoriaId) {
+          const { data: nuovaCategoria, error: errCat } = await sbClient.from('categorie').insert({
+            tenant_id: currentTenantId,
+            nome: g.categoria.trim(),
+            ordine_visualizzazione: prossimoOrdineCategoria++,
+            attivo: true
+          }).select().single();
+          if (errCat) throw errCat;
+          categoriaId = nuovaCategoria.id;
+          categorieEsistenti[chiaveCategoria] = categoriaId;
+        }
+
+        let immagineUrl = null;
+        if (g.imageFile) {
+          const ext = g.imageFile.name.split('.').pop();
+          const path = `${currentTenantId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+          const { error: errUpload } = await sbClient.storage.from(BUCKET).upload(path, g.imageFile);
+          if (errUpload) throw errUpload;
+          const { data: pub } = sbClient.storage.from(BUCKET).getPublicUrl(path);
+          immagineUrl = pub.publicUrl;
+        }
+
+        const { error: errProd } = await sbClient.from('prodotti').insert({
+          tenant_id: currentTenantId,
+          categoria_id: categoriaId,
+          nome: g.prodotto.trim(),
+          descrizione: g.descrizione || '',
+          prezzo_base: prezzoToNumero(g.prezzo),
+          ordine_visualizzazione: prossimoOrdineProdotto(categoriaId),
+          attivo: true,
+          immagine_url: immagineUrl
+        });
+        if (errProd) throw errProd;
+      } catch (err) {
+        errori++;
+        console.error('Errore importando', g.categoria, g.prodotto, err);
+      }
+    }
+
+    await caricaCategorie();
+    await caricaProdotti();
+
+    stato.textContent = errori === 0
+      ? `Fatto! ${totale} prodotti importati.`
+      : `Fatto, con ${errori} errori su ${totale} (dettagli in console).`;
+    showMsg('importa-cartella-msg', errori === 0 ? 'Importazione completata con successo.' : `Importazione completata con ${errori} errori su ${totale}.`, errori === 0 ? 'ok' : 'error');
+    btn.disabled = false;
+  });
 
   document.getElementById('prodotto-categoria').addEventListener('change', () => {
     const inCreazione = !document.getElementById('prodotto-id').value;
