@@ -2384,19 +2384,45 @@
       return;
     }
 
-    cont.innerHTML = prodottiFiltrati.map(p => `
-      <label style="display:flex; align-items:center; gap:10px; padding:8px 4px; border-bottom:1px solid var(--border); cursor:pointer;">
-        <input type="checkbox" class="chk-prodotto-suggerito" data-prodotto="${p.id}" ${idSelezionati.has(p.id) ? 'checked' : ''} style="width:auto;">
-        ${p.immagine_url ? `<img src="${p.immagine_url}" style="width:36px; height:36px; object-fit:cover; border-radius:6px;">` : `<div style="width:36px; height:36px; background:var(--panel-2); border-radius:6px; flex-shrink:0;"></div>`}
-        <div style="flex:1; min-width:0;">
-          <div style="font-weight:600; font-size:13px;">${escapeHtml(p.nome)}</div>
-          <div class="meta">${formatEuroAdmin(p.prezzo_base)}</div>
+    // Raggruppa per categoria, per poter selezionare/deselezionare un'intera categoria
+    // in un colpo solo, oltre a poter spuntare i singoli prodotti.
+    const nomeCategoriaDa = {};
+    categorieCache.forEach(c => { nomeCategoriaDa[c.id] = c.nome; });
+    const perCategoria = {};
+    prodottiFiltrati.forEach(p => {
+      const nomeCategoria = nomeCategoriaDa[p.categoria_id] || 'Senza categoria';
+      if (!perCategoria[nomeCategoria]) perCategoria[nomeCategoria] = [];
+      perCategoria[nomeCategoria].push(p);
+    });
+    window._suggeritiPerCategoria = perCategoria; // usata dal listener della spunta categoria
+
+    cont.innerHTML = Object.entries(perCategoria).map(([nomeCategoria, prodotti]) => {
+      const tuttiSelezionati = prodotti.every(p => idSelezionati.has(p.id));
+      return `
+        <div style="margin-bottom:6px;">
+          <label style="display:flex; align-items:center; gap:8px; padding:8px 4px; font-weight:700; font-size:13px; border-bottom:1px solid var(--border); cursor:pointer;">
+            <input type="checkbox" class="chk-categoria-suggerita" data-categoria="${escapeHtml(nomeCategoria)}" ${tuttiSelezionati ? 'checked' : ''} style="width:auto;">
+            ${escapeHtml(nomeCategoria)} <span class="meta" style="font-weight:400;">(${prodotti.length})</span>
+          </label>
+          ${prodotti.map(p => `
+            <label style="display:flex; align-items:center; gap:10px; padding:8px 4px 8px 26px; border-bottom:1px solid var(--border); cursor:pointer;">
+              <input type="checkbox" class="chk-prodotto-suggerito" data-prodotto="${p.id}" ${idSelezionati.has(p.id) ? 'checked' : ''} style="width:auto;">
+              ${p.immagine_url ? `<img src="${p.immagine_url}" style="width:36px; height:36px; object-fit:cover; border-radius:6px;">` : `<div style="width:36px; height:36px; background:var(--panel-2); border-radius:6px; flex-shrink:0;"></div>`}
+              <div style="flex:1; min-width:0;">
+                <div style="font-weight:600; font-size:13px;">${escapeHtml(p.nome)}</div>
+                <div class="meta">${formatEuroAdmin(p.prezzo_base)}</div>
+              </div>
+            </label>
+          `).join('')}
         </div>
-      </label>
-    `).join('');
+      `;
+    }).join('');
 
     cont.querySelectorAll('.chk-prodotto-suggerito').forEach(chk => {
       chk.addEventListener('change', () => toggleProdottoSuggerito(chk.dataset.prodotto, chk.checked));
+    });
+    cont.querySelectorAll('.chk-categoria-suggerita').forEach(chk => {
+      chk.addEventListener('change', () => toggleCategoriaSuggerita(chk.dataset.categoria, chk.checked, chk));
     });
   }
 
@@ -2410,7 +2436,7 @@
 
   document.getElementById('suggeriti-ricerca').addEventListener('input', (e) => renderProdottiSuggeriti(e.target.value));
 
-  async function toggleProdottoSuggerito(prodottoId, spuntato) {
+  async function toggleProdottoSuggerito(prodottoId, spuntato, ricaricaLista = true) {
     clearMsg('suggeriti-msg');
     if (spuntato) {
       const prodotto = prodottiCache.find(p => p.id === prodottoId);
@@ -2429,7 +2455,20 @@
       if (error) { showMsg('suggeriti-msg', 'Errore: ' + error.message, 'error'); return; }
       suggeritiOpzioniAttuali = suggeritiOpzioniAttuali.filter(o => o.id !== opzione.id);
     }
+    if (ricaricaLista) await caricaVariazioniGruppi();
+  }
+
+  // Spunta/despunta tutti i prodotti di una categoria in un colpo solo.
+  async function toggleCategoriaSuggerita(nomeCategoria, spuntaTutti, checkboxCategoria) {
+    const prodottiCategoria = (window._suggeritiPerCategoria && window._suggeritiPerCategoria[nomeCategoria]) || [];
+    checkboxCategoria.disabled = true;
+    for (const p of prodottiCategoria) {
+      const giaSelezionato = suggeritiOpzioniAttuali.some(o => o.prodotto_riferimento_id === p.id);
+      if (spuntaTutti && !giaSelezionato) await toggleProdottoSuggerito(p.id, true, false);
+      else if (!spuntaTutti && giaSelezionato) await toggleProdottoSuggerito(p.id, false, false);
+    }
     await caricaVariazioniGruppi();
+    renderProdottiSuggeriti();
   }
 
   let opzioniGruppoCorrente = [];
