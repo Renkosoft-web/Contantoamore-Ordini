@@ -884,6 +884,13 @@
         <p style="font-size:12px; color:var(--ink-dim); margin-top:4px;">Es. "Mozzarella x2". Se attiva, il cliente sceglie un numero (0, 1, 2...) per ciascuna opzione invece di una semplice spunta.</p>
       </div>
 
+      <div style="margin-top:14px; padding-top:14px; border-top:1px solid var(--border);">
+        <label style="display:flex; align-items:center; gap:8px; margin-top:0;">
+          <input type="checkbox" id="gruppo-suggerisce-prodotti" style="width:auto;"> 🍹 Suggerisci prodotti del catalogo
+        </label>
+        <p style="font-size:12px; color:var(--ink-dim); margin-top:4px;">Es. "Desideri aggiungere una centrifuga?". Invece di opzioni scritte a mano, scegli dei prodotti già esistenti nel menu: al cliente compaiono con foto, descrizione e prezzo veri (sempre aggiornati), e se li sceglie finiscono nel carrello come articoli a sé, non come aggiunta al prodotto corrente. Attiva automaticamente "post aggiunta carrello" qui sopra.</p>
+      </div>
+
       <div class="msg" id="gruppo-msg"></div>
       <div class="modal-actions">
         <button type="button" class="secondary" onclick="closeModal('modal-gruppo-variazione')">Annulla</button>
@@ -921,6 +928,20 @@
     <div class="msg" id="opzioni-msg"></div>
     <div class="modal-actions">
       <button type="button" class="secondary" onclick="closeModal('modal-opzioni')">Chiudi</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ MODAL PRODOTTI SUGGERITI (gruppi "suggerisce prodotti") ============ -->
+<div class="modal-backdrop" id="modal-prodotti-suggeriti">
+  <div class="modal">
+    <h3>Prodotti suggeriti — <span id="suggeriti-gruppo-nome"></span></h3>
+    <p style="font-size:12px; color:var(--ink-dim); margin-top:-4px;">Spunta i prodotti del catalogo da proporre in questo gruppo. Foto, descrizione e prezzo si aggiornano da soli se modifichi il prodotto in futuro.</p>
+    <input type="text" id="suggeriti-ricerca" placeholder="🔍 Cerca prodotto..." style="margin-top:12px;">
+    <div id="suggeriti-lista" style="max-height:420px; overflow-y:auto; margin-top:12px;"></div>
+    <div class="msg" id="suggeriti-msg"></div>
+    <div class="modal-actions">
+      <button type="button" class="secondary" onclick="closeModal('modal-prodotti-suggeriti')">Chiudi</button>
     </div>
   </div>
 </div>
@@ -2218,7 +2239,7 @@
           <span style="color:var(--ink-dim); font-size:18px; margin-right:2px; user-select:none;">⠿</span>
           <div class="item-info">
             <div class="name">${escapeHtml(v.nome_gruppo)}</div>
-            <div class="meta">${(v.opzioni_variazione || []).length} opzioni · Max scelte: ${v.max_scelte === 0 ? 'Nessun limite' : v.max_scelte} · <span class="badge">${v.tipo === 'eliminazione' ? '➖ Eliminazione' : v.tipo === 'entrambi' ? '↕️ Entrambi' : '➕ Aggiunta'}</span> · <span class="badge ${v.obbligatorio ? '' : 'off'}">${v.obbligatorio ? 'Obbligatorio' : 'Opzionale'}</span>${v.post_aggiunta_carrello ? ' · <span class="badge">🛒 Post-carrello</span>' : ''}${v.abilita_quantita ? ' · <span class="badge">🔢 Quantità</span>' : ''}</div>
+            <div class="meta">${(v.opzioni_variazione || []).length} opzioni · Max scelte: ${v.max_scelte === 0 ? 'Nessun limite' : v.max_scelte} · <span class="badge">${v.tipo === 'eliminazione' ? '➖ Eliminazione' : v.tipo === 'entrambi' ? '↕️ Entrambi' : '➕ Aggiunta'}</span> · <span class="badge ${v.obbligatorio ? '' : 'off'}">${v.obbligatorio ? 'Obbligatorio' : 'Opzionale'}</span>${v.post_aggiunta_carrello ? ' · <span class="badge">🛒 Post-carrello</span>' : ''}${v.abilita_quantita ? ' · <span class="badge">🔢 Quantità</span>' : ''}${v.suggerisce_prodotti ? ' · <span class="badge">🍹 Prodotti catalogo</span>' : ''}</div>
           </div>
         </div>
         <div class="item-actions">
@@ -2237,9 +2258,23 @@
     document.getElementById('gruppo-tipo').value = 'aggiunta';
     document.getElementById('gruppo-post-aggiunta-carrello').checked = false;
     document.getElementById('gruppo-abilita-quantita').checked = false;
+    document.getElementById('gruppo-suggerisce-prodotti').checked = false;
+    document.getElementById('gruppo-post-aggiunta-carrello').disabled = false;
     document.getElementById('modal-gruppo-title').textContent = 'Nuovo gruppo variazione';
     clearMsg('gruppo-msg');
     openModal('modal-gruppo-variazione');
+  });
+
+  // Il gruppo "suggerisce prodotti" ha senso solo come suggerimento post-carrello:
+  // quando è attivo, forziamo e blocchiamo quella spunta.
+  document.getElementById('gruppo-suggerisce-prodotti').addEventListener('change', (e) => {
+    const btnPostCarrello = document.getElementById('gruppo-post-aggiunta-carrello');
+    if (e.target.checked) {
+      btnPostCarrello.checked = true;
+      btnPostCarrello.disabled = true;
+    } else {
+      btnPostCarrello.disabled = false;
+    }
   });
 
   window.modificaGruppo = function(id) {
@@ -2252,6 +2287,8 @@
     document.getElementById('gruppo-tipo').value = v.tipo || 'aggiunta';
     document.getElementById('gruppo-post-aggiunta-carrello').checked = !!v.post_aggiunta_carrello;
     document.getElementById('gruppo-abilita-quantita').checked = !!v.abilita_quantita;
+    document.getElementById('gruppo-suggerisce-prodotti').checked = !!v.suggerisce_prodotti;
+    document.getElementById('gruppo-post-aggiunta-carrello').disabled = !!v.suggerisce_prodotti;
     document.getElementById('modal-gruppo-title').textContent = 'Modifica gruppo variazione';
     clearMsg('gruppo-msg');
     openModal('modal-gruppo-variazione');
@@ -2269,6 +2306,7 @@
     e.preventDefault();
     clearMsg('gruppo-msg');
     const id = document.getElementById('gruppo-id').value;
+    const suggerisceProdotti = document.getElementById('gruppo-suggerisce-prodotti').checked;
     const payload = {
       tenant_id: currentTenantId,
       nome_gruppo: document.getElementById('gruppo-nome').value.trim(),
@@ -2276,8 +2314,9 @@
       min_scelte: 0,
       max_scelte: (() => { const n = parseInt(document.getElementById('gruppo-max').value); return isNaN(n) ? 1 : n; })(),
       tipo: document.getElementById('gruppo-tipo').value,
-      post_aggiunta_carrello: document.getElementById('gruppo-post-aggiunta-carrello').checked,
-      abilita_quantita: document.getElementById('gruppo-abilita-quantita').checked
+      post_aggiunta_carrello: suggerisceProdotti ? true : document.getElementById('gruppo-post-aggiunta-carrello').checked,
+      abilita_quantita: document.getElementById('gruppo-abilita-quantita').checked,
+      suggerisce_prodotti: suggerisceProdotti
     };
 
     try {
@@ -2299,8 +2338,12 @@
   let currentVariazioneIdOpzioni = null;
 
   window.apriOpzioni = async function(variazioneId) {
-    currentVariazioneIdOpzioni = variazioneId;
     const v = variazioniCache.find(x => x.id === variazioneId);
+    if (v && v.suggerisce_prodotti) {
+      apriProdottiSuggeriti(variazioneId);
+      return;
+    }
+    currentVariazioneIdOpzioni = variazioneId;
     document.getElementById('opzioni-gruppo-nome').textContent = v ? v.nome_gruppo : '';
     document.getElementById('nuova-opzione-nome').value = '';
     document.getElementById('nuova-opzione-prezzo').value = '';
@@ -2310,6 +2353,84 @@
     await caricaOpzioni();
     openModal('modal-opzioni');
   };
+
+  // ================= PRODOTTI SUGGERITI (gruppi "suggerisce prodotti") =================
+  let suggeritiVariazioneId = null;
+  let suggeritiOpzioniAttuali = []; // opzioni_variazione esistenti per questo gruppo (con prodotto_riferimento_id)
+
+  async function apriProdottiSuggeriti(variazioneId) {
+    suggeritiVariazioneId = variazioneId;
+    const v = variazioniCache.find(x => x.id === variazioneId);
+    document.getElementById('suggeriti-gruppo-nome').textContent = v ? v.nome_gruppo : '';
+    document.getElementById('suggeriti-ricerca').value = '';
+    clearMsg('suggeriti-msg');
+
+    const { data, error } = await sbClient.from('opzioni_variazione').select('*').eq('variazione_id', variazioneId);
+    if (error) { showMsg('suggeriti-msg', 'Errore: ' + error.message, 'error'); return; }
+    suggeritiOpzioniAttuali = data || [];
+
+    renderProdottiSuggeriti();
+    openModal('modal-prodotti-suggeriti');
+  }
+
+  function renderProdottiSuggeriti(filtro) {
+    const cont = document.getElementById('suggeriti-lista');
+    const query = normalizzaTestoRicerca(filtro || document.getElementById('suggeriti-ricerca').value || '');
+    const idSelezionati = new Set(suggeritiOpzioniAttuali.map(o => o.prodotto_riferimento_id).filter(Boolean));
+
+    const prodottiFiltrati = prodottiCache.filter(p => !query || normalizzaTestoRicerca(p.nome).includes(query));
+    if (!prodottiFiltrati.length) {
+      cont.innerHTML = '<p class="meta">Nessun prodotto trovato.</p>';
+      return;
+    }
+
+    cont.innerHTML = prodottiFiltrati.map(p => `
+      <label style="display:flex; align-items:center; gap:10px; padding:8px 4px; border-bottom:1px solid var(--border); cursor:pointer;">
+        <input type="checkbox" class="chk-prodotto-suggerito" data-prodotto="${p.id}" ${idSelezionati.has(p.id) ? 'checked' : ''} style="width:auto;">
+        ${p.immagine_url ? `<img src="${p.immagine_url}" style="width:36px; height:36px; object-fit:cover; border-radius:6px;">` : `<div style="width:36px; height:36px; background:var(--panel-2); border-radius:6px; flex-shrink:0;"></div>`}
+        <div style="flex:1; min-width:0;">
+          <div style="font-weight:600; font-size:13px;">${escapeHtml(p.nome)}</div>
+          <div class="meta">${formatEuroAdmin(p.prezzo_base)}</div>
+        </div>
+      </label>
+    `).join('');
+
+    cont.querySelectorAll('.chk-prodotto-suggerito').forEach(chk => {
+      chk.addEventListener('change', () => toggleProdottoSuggerito(chk.dataset.prodotto, chk.checked));
+    });
+  }
+
+  function normalizzaTestoRicerca(str) {
+    return (str || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+  }
+
+  function formatEuroAdmin(n) {
+    return '€' + Number(n || 0).toFixed(2);
+  }
+
+  document.getElementById('suggeriti-ricerca').addEventListener('input', (e) => renderProdottiSuggeriti(e.target.value));
+
+  async function toggleProdottoSuggerito(prodottoId, spuntato) {
+    clearMsg('suggeriti-msg');
+    if (spuntato) {
+      const prodotto = prodottiCache.find(p => p.id === prodottoId);
+      const { data, error } = await sbClient.from('opzioni_variazione').insert({
+        variazione_id: suggeritiVariazioneId,
+        nome: prodotto ? prodotto.nome : '',
+        prezzo_aggiuntivo: 0,
+        prodotto_riferimento_id: prodottoId
+      }).select().single();
+      if (error) { showMsg('suggeriti-msg', 'Errore: ' + error.message, 'error'); return; }
+      suggeritiOpzioniAttuali.push(data);
+    } else {
+      const opzione = suggeritiOpzioniAttuali.find(o => o.prodotto_riferimento_id === prodottoId);
+      if (!opzione) return;
+      const { error } = await sbClient.from('opzioni_variazione').delete().eq('id', opzione.id);
+      if (error) { showMsg('suggeriti-msg', 'Errore: ' + error.message, 'error'); return; }
+      suggeritiOpzioniAttuali = suggeritiOpzioniAttuali.filter(o => o.id !== opzione.id);
+    }
+    await caricaVariazioniGruppi();
+  }
 
   let opzioniGruppoCorrente = [];
 
