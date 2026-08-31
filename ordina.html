@@ -376,6 +376,19 @@
   .var-opzione-riga input { width: 20px; height: 20px; accent-color: var(--accent); }
   .var-opzione-extra { color: var(--ink-dim); font-size: 13px; }
 
+  .suggerito-prodotto-riga {
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px 0; border-bottom: 1px solid var(--border);
+  }
+  .suggerito-prodotto-riga:last-child { border-bottom: none; }
+  .suggerito-prodotto-img { width: 56px; height: 56px; object-fit: cover; border-radius: 8px; flex-shrink: 0; }
+  .suggerito-prodotto-img-vuota { background: var(--panel-2); }
+  .suggerito-prodotto-info { flex: 1; min-width: 0; }
+  .suggerito-prodotto-nome { font-weight: 700; font-size: 15px; }
+  .suggerito-prodotto-desc { font-size: 12px; color: var(--ink-dim); margin-top: 2px; }
+  .suggerito-prodotto-prezzo { font-weight: 700; color: var(--accent); margin-top: 4px; font-size: 14px; }
+  .suggerito-prodotto-checkbox input { width: 24px; height: 24px; accent-color: var(--accent); }
+
   .qty-selector { display: flex; align-items: center; gap: 14px; justify-content:center; margin: 16px 0; }
   .qty-selector button { width: 40px; height: 40px; padding: 0; font-size: 20px; border-radius: 50%; }
   .qty-selector .qty-val { font-size: 20px; font-weight: 700; min-width: 30px; text-align: center; }
@@ -418,6 +431,12 @@
   #modal-hai-bisogno-anche .qty-mini-val { font-size: 18px; min-width: 26px; }
   #modal-hai-bisogno-anche #btn-conferma-hai-bisogno-anche,
   #modal-hai-bisogno-anche #btn-salta-hai-bisogno-anche { font-size: 16px; padding: 16px; }
+  #modal-hai-bisogno-anche .suggerito-prodotto-riga { padding: 16px 0; gap: 14px; }
+  #modal-hai-bisogno-anche .suggerito-prodotto-img { width: 68px; height: 68px; }
+  #modal-hai-bisogno-anche .suggerito-prodotto-nome { font-size: 17px; }
+  #modal-hai-bisogno-anche .suggerito-prodotto-desc { font-size: 13px; }
+  #modal-hai-bisogno-anche .suggerito-prodotto-prezzo { font-size: 15px; }
+  #modal-hai-bisogno-anche .suggerito-prodotto-checkbox input { width: 28px; height: 28px; }
   .btn-modifica-riga:hover { background: var(--border); }
 
   .totale-riga {
@@ -1534,7 +1553,7 @@ La cucina non è solo ciò che mangiamo. O meglio: non è solo questo. È l'elab
     });
 
     const { data: prodotti, error: erroreProdotti } = await sbClient
-      .from('prodotti').select('*, prodotti_opzioni_variazione(opzione_variazione_id, opzioni_variazione(id, nome, prezzo_aggiuntivo, variazione_id, variazioni(id, nome_gruppo, obbligatorio, max_scelte, tipo, ordine_visualizzazione, post_aggiunta_carrello, abilita_quantita)))')
+      .from('prodotti').select('*, prodotti_opzioni_variazione(opzione_variazione_id, opzioni_variazione(id, nome, prezzo_aggiuntivo, variazione_id, prodotto_riferimento_id, prodotto_riferimento:prodotto_riferimento_id(id, nome, descrizione, prezzo_base, immagine_url, attivo), variazioni(id, nome_gruppo, obbligatorio, max_scelte, tipo, ordine_visualizzazione, post_aggiunta_carrello, abilita_quantita, suggerisce_prodotti)))')
       .eq('tenant_id', TENANT_ID).eq('attivo', true)
       .order('ordine_visualizzazione');
     if (erroreProdotti) {
@@ -1556,8 +1575,11 @@ La cucina non è solo ciò che mangiamo. O meglio: non è solo questo. È l'elab
         const opz = pv.opzioni_variazione;
         if (!opz || !opz.variazioni) return;
         const g = opz.variazioni;
+        // Per i gruppi "suggerisce prodotti", scartiamo le opzioni il cui prodotto
+        // collegato non esiste più o è stato disattivato nel frattempo.
+        if (g.suggerisce_prodotti && (!opz.prodotto_riferimento || opz.prodotto_riferimento.attivo === false)) return;
         if (!gruppiMap[g.id]) gruppiMap[g.id] = { gruppo: g, opzioni: [] };
-        gruppiMap[g.id].opzioni.push({ id: opz.id, nome: opz.nome, prezzo_aggiuntivo: opz.prezzo_aggiuntivo });
+        gruppiMap[g.id].opzioni.push({ id: opz.id, nome: opz.nome, prezzo_aggiuntivo: opz.prezzo_aggiuntivo, prodottoRiferimento: opz.prodotto_riferimento || null });
       });
       const tuttiGruppi = Object.values(gruppiMap);
       tuttiGruppi.sort((a, b) => (a.gruppo.ordine_visualizzazione || 0) - (b.gruppo.ordine_visualizzazione || 0));
@@ -1754,7 +1776,52 @@ La cucina non è solo ciò che mangiamo. O meglio: non è solo questo. È l'elab
   // selettore numerico per opzione, altrimenti la classica checkbox/radio. Usata sia nel
   // modal dettaglio prodotto sia nel popup "Hai bisogno anche", cosi' il comportamento
   // (incluso la quantita') e' identico ovunque un gruppo venga proposto.
+  // Gruppo "suggerisce prodotti": mostra prodotti veri del catalogo (foto, descrizione,
+  // prezzo) invece di semplici opzioni testuali. Usa lo stesso meccanismo di
+  // checkbox/quantità sotto il cofano, così il resto del codice (lettura selezioni,
+  // validazione) funziona senza bisogno di percorsi separati.
+  function renderGruppoProdottiSuggeritiHtml(g) {
+    const isQty = !!g.gruppo.abilita_quantita;
+    return `
+      <div class="var-gruppo">
+        <div class="var-gruppo-titolo">
+          <span>🍹 ${escapeHtml(g.gruppo.nome_gruppo)}</span>
+        </div>
+        ${g.opzioni.map(o => {
+          const prod = o.prodottoRiferimento;
+          const nome = prod ? prod.nome : o.nome;
+          const prezzo = prod ? Number(prod.prezzo_base) : (Number(o.prezzo_aggiuntivo) || 0);
+          const immagine = prod ? prod.immagine_url : '';
+          const descrizione = prod ? prod.descrizione : '';
+          return `
+            <div class="suggerito-prodotto-riga" data-gruppo-riga="${g.gruppo.id}" data-nome-normalizzato="${escapeHtml(normalizzaTesto(nome))}">
+              ${immagine ? `<img src="${immagine}" class="suggerito-prodotto-img" alt="">` : `<div class="suggerito-prodotto-img suggerito-prodotto-img-vuota"></div>`}
+              <div class="suggerito-prodotto-info">
+                <div class="suggerito-prodotto-nome">${escapeHtml(nome)}</div>
+                ${descrizione ? `<div class="suggerito-prodotto-desc">${escapeHtml(descrizione)}</div>` : ''}
+                <div class="suggerito-prodotto-prezzo">${formatEuro(prezzo)}</div>
+              </div>
+              ${isQty ? `
+                <div class="carrello-riga-azioni" style="margin-top:0;">
+                  <button type="button" class="qty-mini-btn btn-qty-opzione" data-gruppo="${g.gruppo.id}" data-opzione="${o.id}" data-delta="-1">−</button>
+                  <span class="qty-mini-val val-qty-opzione" data-gruppo="${g.gruppo.id}" data-opzione="${o.id}">0</span>
+                  <button type="button" class="qty-mini-btn btn-qty-opzione" data-gruppo="${g.gruppo.id}" data-opzione="${o.id}" data-delta="1">+</button>
+                </div>
+              ` : `
+                <label class="suggerito-prodotto-checkbox">
+                  <input type="checkbox" class="chk-var-cliente" data-gruppo="${g.gruppo.id}" value="${o.id}">
+                </label>
+              `}
+            </div>
+          `;
+        }).join('')}
+      </div>
+    `;
+  }
+
   function renderGruppoVariazioneHtml(g) {
+    if (g.gruppo.suggerisce_prodotti) return renderGruppoProdottiSuggeritiHtml(g);
+
     const isQty = !!g.gruppo.abilita_quantita;
     const isRadio = !isQty && g.gruppo.max_scelte === 1;
     const tipo = g.gruppo.tipo || 'aggiunta';
@@ -1835,7 +1902,23 @@ La cucina non è solo ciò che mangiamo. O meglio: non è solo questo. È l'elab
   function leggiSelezioniGruppi(cont, gruppi) {
     let extra = 0;
     const opzioniScelte = [];
+    const prodottiSuggeriti = []; // {prodotto, quantita} — dai gruppi "suggerisce prodotti": diventano righe carrello a sé, non si sommano a extra/opzioniScelte
     gruppi.forEach(g => {
+      if (g.gruppo.suggerisce_prodotti) {
+        g.opzioni.forEach(o => {
+          if (!o.prodottoRiferimento) return;
+          let qty = 0;
+          if (g.gruppo.abilita_quantita) {
+            const span = cont.querySelector(`.val-qty-opzione[data-gruppo="${g.gruppo.id}"][data-opzione="${o.id}"]`);
+            qty = span ? (parseInt(span.textContent) || 0) : 0;
+          } else {
+            const el = cont.querySelector(`.chk-var-cliente[data-gruppo="${g.gruppo.id}"][value="${o.id}"]`);
+            qty = (el && el.checked) ? 1 : 0;
+          }
+          if (qty > 0) prodottiSuggeriti.push({ prodotto: o.prodottoRiferimento, quantita: qty });
+        });
+        return;
+      }
       if (g.gruppo.abilita_quantita) {
         g.opzioni.forEach(o => {
           const span = cont.querySelector(`.val-qty-opzione[data-gruppo="${g.gruppo.id}"][data-opzione="${o.id}"]`);
@@ -1855,7 +1938,7 @@ La cucina non è solo ciò che mangiamo. O meglio: non è solo questo. È l'elab
         });
       }
     });
-    return { extra, opzioniScelte };
+    return { extra, opzioniScelte, prodottiSuggeriti };
   }
 
   window.apriDettaglioProdotto = function(prodottoId, opts) {
@@ -1884,8 +1967,10 @@ La cucina non è solo ciò che mangiamo. O meglio: non è solo questo. È l'elab
     // Nella scelta normale (nuovo prodotto) si vedono solo i gruppi "standard". In modifica
     // dal carrello (opts.includiPostCarrello) si vedono anche i gruppi "hai bisogno anche",
     // cosi' si possono cambiare pure quelli senza dover ripassare dal popup post-aggiunta.
+    // I gruppi "suggerisce prodotti" restano ESCLUSI anche in modifica: aggiungono righe
+    // carrello a sé (altri prodotti), cosa che non ha senso mentre si modifica QUESTA riga.
     const gruppiNormali = variazioniPerProdotto[prodottoId] || [];
-    const gruppiPost = gruppiPostCarrelloPerProdotto[prodottoId] || [];
+    const gruppiPost = (gruppiPostCarrelloPerProdotto[prodottoId] || []).filter(g => !g.gruppo.suggerisce_prodotti);
     gruppiAttiviDettaglio = opts.includiPostCarrello ? gruppiNormali.concat(gruppiPost) : gruppiNormali;
 
     const cont = document.getElementById('dettaglio-variazioni');
@@ -2004,11 +2089,27 @@ La cucina non è solo ciò che mangiamo. O meglio: non è solo questo. È l'elab
       if (aggiungiSelezionate) {
         const cont = document.getElementById('hai-bisogno-anche-opzioni');
         const gruppiPost = (gruppiPostCarrelloPerProdotto[voceCarrelloInSospeso.prodotto_id] || []).filter(g => g.opzioni.length);
-        const { extra, opzioniScelte } = leggiSelezioniGruppi(cont, gruppiPost);
+        const { extra, opzioniScelte, prodottiSuggeriti } = leggiSelezioniGruppi(cont, gruppiPost);
         voceCarrelloInSospeso.prezzoUnitario += extra;
         voceCarrelloInSospeso.opzioniScelte = voceCarrelloInSospeso.opzioniScelte.concat(opzioniScelte);
+        carrello.push(voceCarrelloInSospeso);
+
+        // I prodotti scelti da un gruppo "suggerisce prodotti" (es. "Vuoi anche una
+        // centrifuga?") diventano righe carrello a sé stanti, con il loro prodotto_id
+        // reale: si comportano come se il cliente li avesse aggiunti da soli dal menu.
+        prodottiSuggeriti.forEach(({ prodotto, quantita }) => {
+          carrello.push({
+            chiave: Date.now() + '-' + Math.random(),
+            prodotto_id: prodotto.id,
+            nome: prodotto.nome,
+            prezzoUnitario: Number(prodotto.prezzo_base) || 0,
+            quantita,
+            opzioniScelte: []
+          });
+        });
+      } else {
+        carrello.push(voceCarrelloInSospeso);
       }
-      carrello.push(voceCarrelloInSospeso);
       voceCarrelloInSospeso = null;
       aggiornaFabCarrello();
     }
