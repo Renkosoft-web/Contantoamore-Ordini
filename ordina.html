@@ -732,7 +732,7 @@
   </div>
 </div>
 
-<div style="position:fixed; bottom:4px; right:6px; font-size:10px; color:#b2a878; z-index:1;">v2026-08-07-b (visualizzatore foto sempre centrato e in primo piano)</div>
+<div style="position:fixed; bottom:4px; right:6px; font-size:10px; color:#b2a878; z-index:1;">v2026-08-07-c (ricerca unica per tutte le variazioni, non una per gruppo)</div>
 
 <!-- ============ MODAL INSTALLA APP ============ -->
 <div class="modal-backdrop" id="modal-installa-app">
@@ -1855,7 +1855,6 @@ La cucina non è solo ciò che mangiamo. O meglio: non è solo questo. È l'elab
           <span>${tipo === 'eliminazione' ? '➖' : tipo === 'aggiunta' ? '➕' : ''} ${escapeHtml(g.gruppo.nome_gruppo)} ${g.gruppo.obbligatorio ? '<span class="badge">Obbligatorio</span>' : ''}</span>
           <span class="hint">${testoSuggerimento}</span>
         </div>
-        ${g.opzioni.length > 10 ? `<input type="text" class="cerca-variazioni-cliente" data-gruppo="${g.gruppo.id}" placeholder="🔍 Cerca..." style="margin-bottom:8px;">` : ''}
         ${g.opzioni.map(o => isQty ? `
           <div class="var-opzione-riga" data-gruppo-riga="${g.gruppo.id}" data-nome-normalizzato="${escapeHtml(normalizzaTesto(o.nome))}">
             <label style="flex:1;">${escapeHtml(o.nome)} ${o.prezzo_aggiuntivo > 0 ? `<span class="var-opzione-extra">+${formatEuro(o.prezzo_aggiuntivo)} cad.</span>` : ''}</label>
@@ -1878,7 +1877,7 @@ La cucina non è solo ciò che mangiamo. O meglio: non è solo questo. È l'elab
     `;
   }
 
-  // Collega gli eventi (checkbox/radio, +/- quantità, ricerca) ai gruppi appena renderizzati
+  // Collega gli eventi (checkbox/radio, +/- quantità) ai gruppi appena renderizzati
   // dentro un contenitore specifico (il dettaglio prodotto o il popup "Hai bisogno anche").
   function attivaListenerGruppi(cont, onChange) {
     cont.querySelectorAll('.chk-var-cliente').forEach(el => {
@@ -1894,16 +1893,38 @@ La cucina non è solo ciò che mangiamo. O meglio: non è solo questo. È l'elab
         onChange();
       });
     });
-    cont.querySelectorAll('.cerca-variazioni-cliente').forEach(campo => {
-      campo.addEventListener('input', () => {
-        const gruppoId = campo.dataset.gruppo;
-        const query = normalizzaTesto(campo.value);
-        cont.querySelectorAll(`.var-opzione-riga[data-gruppo-riga="${gruppoId}"]`).forEach(riga => {
-          const corrisponde = !query || riga.dataset.nomeNormalizzato.includes(query);
-          riga.style.display = corrisponde ? '' : 'none';
-        });
+    const campoRicerca = cont.querySelector('.cerca-variazioni-globale');
+    if (campoRicerca) {
+      campoRicerca.addEventListener('input', () => filtraRicercaGlobale(cont, campoRicerca.value));
+    }
+  }
+
+  // Un'unica ricerca che filtra le opzioni di TUTTI i gruppi presenti nel contenitore
+  // (non una per gruppo): se un gruppo finisce senza righe visibili, si nasconde anche
+  // il suo titolo, per non lasciare intestazioni vuote a schermo.
+  function filtraRicercaGlobale(cont, valore) {
+    const query = normalizzaTesto(valore);
+    cont.querySelectorAll('.var-gruppo').forEach(gruppoEl => {
+      const righe = gruppoEl.querySelectorAll('.var-opzione-riga');
+      if (!righe.length) return; // gruppi "suggerisce prodotti" non hanno righe di questo tipo: li ignoriamo
+      let almenoUnaVisibile = false;
+      righe.forEach(riga => {
+        const corrisponde = !query || riga.dataset.nomeNormalizzato.includes(query);
+        riga.style.display = corrisponde ? '' : 'none';
+        if (corrisponde) almenoUnaVisibile = true;
       });
+      gruppoEl.style.display = almenoUnaVisibile ? '' : 'none';
     });
+  }
+
+  // Costruisce l'HTML di un insieme di gruppi, con UNA sola casella di ricerca in cima
+  // (non una per gruppo) quando le opzioni totali sono abbastanza tante da giustificarla.
+  function costruisciHtmlGruppi(gruppi) {
+    const totaleOpzioni = gruppi.reduce((somma, g) => somma + (g.gruppo.suggerisce_prodotti ? 0 : g.opzioni.length), 0);
+    const ricercaHtml = totaleOpzioni > 10
+      ? `<input type="text" class="cerca-variazioni-globale" placeholder="🔍 Cerca tra tutte le opzioni..." style="margin-bottom:14px;">`
+      : '';
+    return ricercaHtml + gruppi.map(renderGruppoVariazioneHtml).join('');
   }
 
   // Legge le selezioni correnti (checkbox/radio + quantità) per un insieme di gruppi,
@@ -1988,7 +2009,7 @@ La cucina non è solo ciò che mangiamo. O meglio: non è solo questo. È l'elab
     if (!gruppiAttiviDettaglio.length) {
       cont.innerHTML = '';
     } else {
-      cont.innerHTML = gruppiAttiviDettaglio.map(renderGruppoVariazioneHtml).join('');
+      cont.innerHTML = costruisciHtmlGruppi(gruppiAttiviDettaglio);
       attivaListenerGruppi(cont, aggiornaPrezzoDettaglio);
     }
 
@@ -2090,7 +2111,7 @@ La cucina non è solo ciò che mangiamo. O meglio: non è solo questo. È l'elab
 
   function apriPopupHaiBisognoAnche(gruppiPost) {
     const cont = document.getElementById('hai-bisogno-anche-opzioni');
-    cont.innerHTML = gruppiPost.map(renderGruppoVariazioneHtml).join('');
+    cont.innerHTML = costruisciHtmlGruppi(gruppiPost);
     attivaListenerGruppi(cont, () => {}); // qui non serve aggiornare un prezzo live
     openModal('modal-hai-bisogno-anche');
   }
