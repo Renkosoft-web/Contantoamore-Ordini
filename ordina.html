@@ -647,9 +647,13 @@
 <!-- ============ MODAL SCELTA VARIAZIONI ============ -->
 <div class="modal-backdrop" id="modal-prodotto-dettaglio">
   <div class="modal-sheet">
-    <img id="dettaglio-immagine" style="width:100%; height:180px; object-fit:cover; border-radius:12px; display:none; margin-bottom:16px;">
-    <h3 id="dettaglio-nome"></h3>
-    <p id="dettaglio-descrizione" style="color:var(--ink-dim); font-size:13px; margin-top:6px;"></p>
+    <div id="dettaglio-header" style="display:flex; gap:12px; align-items:flex-start;">
+      <img id="dettaglio-immagine" style="width:68px; height:68px; object-fit:cover; border-radius:10px; display:none; flex-shrink:0; cursor:pointer;">
+      <div style="flex:1; min-width:0;">
+        <h3 id="dettaglio-nome" style="margin:0;"></h3>
+        <p id="dettaglio-descrizione" style="color:var(--ink-dim); font-size:13px; margin-top:4px;"></p>
+      </div>
+    </div>
 
     <div id="dettaglio-variazioni"></div>
 
@@ -723,7 +727,7 @@
   </div>
 </div>
 
-<div style="position:fixed; bottom:4px; right:6px; font-size:10px; color:#b2a878; z-index:1;">v2026-08-06-g (menu scaricabile fedele alla grafica del sito, con descrizioni e immagini)</div>
+<div style="position:fixed; bottom:4px; right:6px; font-size:10px; color:#b2a878; z-index:1;">v2026-08-07-a (dettaglio prodotto: immagine più piccola, cliccabile per ingrandire)</div>
 
 <!-- ============ MODAL INSTALLA APP ============ -->
 <div class="modal-backdrop" id="modal-installa-app">
@@ -1959,8 +1963,10 @@ La cucina non è solo ciò che mangiamo. O meglio: non è solo questo. È l'elab
     if (prodottoInDettaglio.immagine_url) {
       imgDettaglio.src = prodottoInDettaglio.immagine_url;
       imgDettaglio.style.display = 'block';
+      imgDettaglio.onclick = () => ingrandisciFoto(prodottoInDettaglio.immagine_url);
     } else {
       imgDettaglio.style.display = 'none';
+      imgDettaglio.onclick = null;
     }
     clearMsg('dettaglio-msg');
 
