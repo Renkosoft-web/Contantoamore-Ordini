@@ -334,6 +334,11 @@
     .modal-backdrop { align-items: center; }
     .modal-sheet { border-radius: var(--radius); max-height: 90vh; }
   }
+
+  /* Il visualizzatore foto deve sempre stare sopra a qualsiasi altro popup e apparire
+     centrato e in primo piano, anche su schermi stretti (mai come "foglio dal basso"). */
+  #modal-foto-ingrandita { z-index: 200; align-items: center; }
+  #modal-foto-ingrandita .modal-sheet { border-radius: var(--radius); }
   /* Il modal carrello resta a scroll unico (contenuto tipicamente più corto) */
   #modal-carrello .modal-sheet { overflow-y: auto; display: block; max-height: 90vh; }
 
@@ -727,7 +732,7 @@
   </div>
 </div>
 
-<div style="position:fixed; bottom:4px; right:6px; font-size:10px; color:#b2a878; z-index:1;">v2026-08-07-a (dettaglio prodotto: immagine più piccola, cliccabile per ingrandire)</div>
+<div style="position:fixed; bottom:4px; right:6px; font-size:10px; color:#b2a878; z-index:1;">v2026-08-07-b (visualizzatore foto sempre centrato e in primo piano)</div>
 
 <!-- ============ MODAL INSTALLA APP ============ -->
 <div class="modal-backdrop" id="modal-installa-app">
