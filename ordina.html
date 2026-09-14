@@ -736,7 +736,7 @@
   </div>
 </div>
 
-<div style="position:fixed; bottom:4px; right:6px; font-size:10px; color:#b2a878; z-index:1;">v2026-08-07-e (indicazione "max X aggiunte" nei gruppi coinvolti nel limite)</div>
+<div style="position:fixed; bottom:4px; right:6px; font-size:10px; color:#b2a878; z-index:1;">v2026-08-07-f (i gruppi obbligatori non contano nel limite condiviso aggiunte)</div>
 
 <!-- ============ MODAL INSTALLA APP ============ -->
 <div class="modal-backdrop" id="modal-installa-app">
@@ -1857,7 +1857,7 @@ La cucina non è solo ciò che mangiamo. O meglio: non è solo questo. È l'elab
     // quel numero conta di più del "max_scelte" del singolo gruppo: lo mostriamo al posto
     // del suggerimento normale, per non confondere il cliente con due numeri diversi.
     const limiteProdotto = prodottoInDettaglio && prodottoInDettaglio.limite_ingredienti_aggiunta;
-    const contaPerLimiteProdotto = limiteProdotto && !g.gruppo.suggerisce_prodotti && (tipo === 'aggiunta' || tipo === 'entrambi');
+    const contaPerLimiteProdotto = limiteProdotto && !g.gruppo.suggerisce_prodotti && !g.gruppo.obbligatorio && (tipo === 'aggiunta' || tipo === 'entrambi');
     if (contaPerLimiteProdotto) {
       testoSuggerimento = `max ${limiteProdotto} aggiunte in totale`;
     }
@@ -2061,7 +2061,7 @@ La cucina non è solo ciò che mangiamo. O meglio: non è solo questo. È l'elab
     if (!limite || !cont) { if (badge) badge.style.display = 'none'; return; }
 
     const gruppiConteggiati = gruppiAttiviDettaglio.filter(g =>
-      !g.gruppo.suggerisce_prodotti && (g.gruppo.tipo === 'aggiunta' || g.gruppo.tipo === 'entrambi')
+      !g.gruppo.suggerisce_prodotti && !g.gruppo.obbligatorio && (g.gruppo.tipo === 'aggiunta' || g.gruppo.tipo === 'entrambi')
     );
     if (!gruppiConteggiati.length) { if (badge) badge.style.display = 'none'; return; }
 
@@ -2127,7 +2127,7 @@ La cucina non è solo ciò che mangiamo. O meglio: non è solo questo. È l'elab
     const limite = prodottoInDettaglio.limite_ingredienti_aggiunta;
     if (limite) {
       const gruppiConteggiati = gruppiAttiviDettaglio.filter(g =>
-        !g.gruppo.suggerisce_prodotti && (g.gruppo.tipo === 'aggiunta' || g.gruppo.tipo === 'entrambi')
+        !g.gruppo.suggerisce_prodotti && !g.gruppo.obbligatorio && (g.gruppo.tipo === 'aggiunta' || g.gruppo.tipo === 'entrambi')
       );
       let totaleAggiunte = 0;
       gruppiConteggiati.forEach(g => {
