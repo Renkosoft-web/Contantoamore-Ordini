@@ -736,7 +736,7 @@
   </div>
 </div>
 
-<div style="position:fixed; bottom:4px; right:6px; font-size:10px; color:#b2a878; z-index:1;">v2026-08-07-d (limite massimo ingredienti in aggiunta tra più gruppi)</div>
+<div style="position:fixed; bottom:4px; right:6px; font-size:10px; color:#b2a878; z-index:1;">v2026-08-07-e (indicazione "max X aggiunte" nei gruppi coinvolti nel limite)</div>
 
 <!-- ============ MODAL INSTALLA APP ============ -->
 <div class="modal-backdrop" id="modal-installa-app">
@@ -1851,6 +1851,15 @@ La cucina non è solo ciò che mangiamo. O meglio: non è solo questo. È l'elab
       testoSuggerimento = senzaLimite ? 'scegli tutti gli ingredienti che vuoi aggiungere' : 'scegli fino a ' + g.gruppo.max_scelte + ' da aggiungere';
     } else {
       testoSuggerimento = senzaLimite ? 'scegli quanti ne vuoi' : 'scegli fino a ' + g.gruppo.max_scelte;
+    }
+
+    // Se il prodotto ha un limite condiviso di ingredienti "in aggiunta" (tra più gruppi),
+    // quel numero conta di più del "max_scelte" del singolo gruppo: lo mostriamo al posto
+    // del suggerimento normale, per non confondere il cliente con due numeri diversi.
+    const limiteProdotto = prodottoInDettaglio && prodottoInDettaglio.limite_ingredienti_aggiunta;
+    const contaPerLimiteProdotto = limiteProdotto && !g.gruppo.suggerisce_prodotti && (tipo === 'aggiunta' || tipo === 'entrambi');
+    if (contaPerLimiteProdotto) {
+      testoSuggerimento = `max ${limiteProdotto} aggiunte in totale`;
     }
 
     return `
