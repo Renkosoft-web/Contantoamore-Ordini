@@ -834,6 +834,17 @@
         <div id="riepilogo-variazioni-chips" style="display:flex; flex-wrap:wrap; gap:6px;"></div>
       </div>
 
+      <div style="margin-top:16px; padding-top:14px; border-top:1px solid var(--border);">
+        <label style="display:flex; align-items:center; gap:8px; margin-top:0;">
+          <input type="checkbox" id="prodotto-limita-aggiunte" style="width:auto;"> Attiva massimo ingredienti possibili in aggiunta
+        </label>
+        <p style="font-size:12px; color:var(--ink-dim); margin-top:4px;">Es. "panino": ha il gruppo "Elimina ingredienti" più altri gruppi già esistenti collegati (Aggiungi affettati, Scegli la frutta...). Con questo attivo, il totale di scelte tra TUTTI quei gruppi "in aggiunta" non può superare il numero qui sotto — anche se ogni singolo gruppo permetterebbe di più per conto suo. Non riguarda "Elimina ingredienti".</p>
+        <div id="blocco-limite-aggiunte" style="display:none; margin-top:8px;">
+          <label for="prodotto-limite-aggiunte-numero" style="margin-top:0; font-size:12px;">Numero massimo totale</label>
+          <input type="number" id="prodotto-limite-aggiunte-numero" min="1" value="2" style="max-width:100px;">
+        </div>
+      </div>
+
       <div class="msg" id="prodotto-msg"></div>
       <div class="modal-actions">
         <button type="button" class="secondary" onclick="closeModal('modal-prodotto')">Annulla</button>
@@ -2103,6 +2114,10 @@
     document.getElementById('blocco-colore-bottone-prodotto').style.display = e.target.checked ? 'block' : 'none';
   });
 
+  document.getElementById('prodotto-limita-aggiunte').addEventListener('change', (e) => {
+    document.getElementById('blocco-limite-aggiunte').style.display = e.target.checked ? 'block' : 'none';
+  });
+
   document.getElementById('btn-nuovo-prodotto').addEventListener('click', () => {
     if (!categorieCache.length) {
       alert('Crea prima almeno una categoria.');
@@ -2114,6 +2129,9 @@
     document.getElementById('prodotto-novita').checked = false;
     document.getElementById('prodotto-personalizza-bottone').checked = false;
     document.getElementById('blocco-colore-bottone-prodotto').style.display = 'none';
+    document.getElementById('prodotto-limita-aggiunte').checked = false;
+    document.getElementById('prodotto-limite-aggiunte-numero').value = 2;
+    document.getElementById('blocco-limite-aggiunte').style.display = 'none';
     document.getElementById('prodotto-immagine-preview').classList.remove('show');
     document.getElementById('modal-prodotto-title').textContent = 'Nuovo prodotto';
 
@@ -2146,6 +2164,10 @@
     document.getElementById('blocco-colore-bottone-prodotto').style.display = haColoreBottone ? 'block' : 'none';
     document.getElementById('prodotto-colore-sfondo-bottone').value = p.colore_sfondo_bottone || '#2c7a4b';
     document.getElementById('prodotto-colore-testo-bottone').value = p.colore_testo_bottone || '#ffffff';
+    const haLimiteAggiunte = p.limite_ingredienti_aggiunta !== null && p.limite_ingredienti_aggiunta !== undefined;
+    document.getElementById('prodotto-limita-aggiunte').checked = haLimiteAggiunte;
+    document.getElementById('blocco-limite-aggiunte').style.display = haLimiteAggiunte ? 'block' : 'none';
+    document.getElementById('prodotto-limite-aggiunte-numero').value = haLimiteAggiunte ? p.limite_ingredienti_aggiunta : 2;
     const preview = document.getElementById('prodotto-immagine-preview');
     if (p.immagine_url) { preview.src = p.immagine_url; preview.classList.add('show'); }
     else preview.classList.remove('show');
@@ -2223,6 +2245,7 @@
         novita: document.getElementById('prodotto-novita').checked,
         colore_sfondo_bottone: document.getElementById('prodotto-personalizza-bottone').checked ? document.getElementById('prodotto-colore-sfondo-bottone').value : null,
         colore_testo_bottone: document.getElementById('prodotto-personalizza-bottone').checked ? document.getElementById('prodotto-colore-testo-bottone').value : null,
+        limite_ingredienti_aggiunta: document.getElementById('prodotto-limita-aggiunte').checked ? (parseInt(document.getElementById('prodotto-limite-aggiunte-numero').value) || 1) : null,
         immagine_url: immagineUrl
       };
 
