@@ -416,6 +416,8 @@
     background: var(--panel-2); border: 1px solid var(--border); color: var(--ink);
   }
   .qty-mini-btn:hover { background: var(--border); }
+  .qty-mini-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+  .var-opzione-riga:has(.chk-var-cliente:disabled:not(:checked)) { opacity: 0.4; }
   .qty-mini-val { font-size: 13px; font-weight: 600; min-width: 16px; text-align: center; }
   .btn-modifica-riga {
     height: 26px; padding: 0 10px; font-size: 12px; border-radius: 13px; margin-left: 4px;
@@ -660,6 +662,8 @@
       </div>
     </div>
 
+    <div id="dettaglio-limite-aggiunte" style="display:none; font-size:12px; font-weight:700; margin:10px 0 -4px;"></div>
+
     <div id="dettaglio-variazioni"></div>
 
     <div class="qty-selector">
@@ -732,7 +736,7 @@
   </div>
 </div>
 
-<div style="position:fixed; bottom:4px; right:6px; font-size:10px; color:#b2a878; z-index:1;">v2026-08-07-c (ricerca unica per tutte le variazioni, non una per gruppo)</div>
+<div style="position:fixed; bottom:4px; right:6px; font-size:10px; color:#b2a878; z-index:1;">v2026-08-07-d (limite massimo ingredienti in aggiunta tra più gruppi)</div>
 
 <!-- ============ MODAL INSTALLA APP ============ -->
 <div class="modal-backdrop" id="modal-installa-app">
@@ -2034,6 +2038,55 @@ La cucina non è solo ciò che mangiamo. O meglio: non è solo questo. È l'elab
     const totale = prezzoUnitario * qtyCorrente;
     const etichetta = modificaCarrelloChiave ? 'Salva modifiche' : 'Aggiungi al carrello';
     document.getElementById('btn-conferma-aggiungi').textContent = `${etichetta} — ${formatEuro(totale)}`;
+    applicaLimiteAggiunte();
+  }
+
+  // Se il prodotto ha un limite massimo di ingredienti "in aggiunta" (impostato in admin),
+  // somma le scelte di TUTTI i gruppi di tipo aggiunta/entrambi collegati (non un limite
+  // per singolo gruppo) e blocca ulteriori aggiunte una volta raggiunto il tetto. I gruppi
+  // "Elimina ingredienti" (tipo eliminazione) non sono mai conteggiati in questo limite.
+  function applicaLimiteAggiunte() {
+    const badge = document.getElementById('dettaglio-limite-aggiunte');
+    const limite = prodottoInDettaglio && prodottoInDettaglio.limite_ingredienti_aggiunta;
+    const cont = document.getElementById('dettaglio-variazioni');
+    if (!limite || !cont) { if (badge) badge.style.display = 'none'; return; }
+
+    const gruppiConteggiati = gruppiAttiviDettaglio.filter(g =>
+      !g.gruppo.suggerisce_prodotti && (g.gruppo.tipo === 'aggiunta' || g.gruppo.tipo === 'entrambi')
+    );
+    if (!gruppiConteggiati.length) { if (badge) badge.style.display = 'none'; return; }
+
+    let totale = 0;
+    gruppiConteggiati.forEach(g => {
+      if (g.gruppo.abilita_quantita) {
+        g.opzioni.forEach(o => {
+          const span = cont.querySelector(`.val-qty-opzione[data-gruppo="${g.gruppo.id}"][data-opzione="${o.id}"]`);
+          totale += span ? (parseInt(span.textContent) || 0) : 0;
+        });
+      } else {
+        totale += cont.querySelectorAll(`.chk-var-cliente[data-gruppo="${g.gruppo.id}"]:checked`).length;
+      }
+    });
+
+    if (badge) {
+      badge.style.display = 'block';
+      badge.style.color = totale >= limite ? 'var(--error)' : 'var(--ink-dim)';
+      badge.textContent = `Ingredienti extra aggiunti: ${totale} di ${limite}`;
+    }
+
+    const raggiunto = totale >= limite;
+    gruppiConteggiati.forEach(g => {
+      if (g.gruppo.abilita_quantita) {
+        g.opzioni.forEach(o => {
+          const btnPiu = cont.querySelector(`.btn-qty-opzione[data-gruppo="${g.gruppo.id}"][data-opzione="${o.id}"][data-delta="1"]`);
+          if (btnPiu) btnPiu.disabled = raggiunto;
+        });
+      } else {
+        cont.querySelectorAll(`.chk-var-cliente[data-gruppo="${g.gruppo.id}"]`).forEach(chk => {
+          if (!chk.checked) chk.disabled = raggiunto;
+        });
+      }
+    });
   }
 
   document.getElementById('btn-conferma-aggiungi').addEventListener('click', () => {
@@ -2055,6 +2108,31 @@ La cucina non è solo ciò che mangiamo. O meglio: non è solo questo. È l'elab
       }
       if (!soddisfatto) {
         showMsg('dettaglio-msg', `Devi scegliere un'opzione per "${g.gruppo.nome_gruppo}".`, 'error');
+        document.getElementById('dettaglio-msg').scrollIntoView({ behavior: 'smooth', block: 'center' });
+        return;
+      }
+    }
+
+    // Controllo di sicurezza sul limite totale di ingredienti in aggiunta (l'interfaccia
+    // dovrebbe già impedire di superarlo disattivando le opzioni, ma verifichiamo comunque).
+    const limite = prodottoInDettaglio.limite_ingredienti_aggiunta;
+    if (limite) {
+      const gruppiConteggiati = gruppiAttiviDettaglio.filter(g =>
+        !g.gruppo.suggerisce_prodotti && (g.gruppo.tipo === 'aggiunta' || g.gruppo.tipo === 'entrambi')
+      );
+      let totaleAggiunte = 0;
+      gruppiConteggiati.forEach(g => {
+        if (g.gruppo.abilita_quantita) {
+          g.opzioni.forEach(o => {
+            const span = cont.querySelector(`.val-qty-opzione[data-gruppo="${g.gruppo.id}"][data-opzione="${o.id}"]`);
+            totaleAggiunte += span ? (parseInt(span.textContent) || 0) : 0;
+          });
+        } else {
+          totaleAggiunte += cont.querySelectorAll(`.chk-var-cliente[data-gruppo="${g.gruppo.id}"]:checked`).length;
+        }
+      });
+      if (totaleAggiunte > limite) {
+        showMsg('dettaglio-msg', `Puoi aggiungere al massimo ${limite} ingredienti in totale.`, 'error');
         document.getElementById('dettaglio-msg').scrollIntoView({ behavior: 'smooth', block: 'center' });
         return;
       }
