@@ -2567,9 +2567,18 @@ const ICONE_CATEGORIA_BASE64 = {
     e.preventDefault();
     clearMsg('allergene-msg');
     const id = document.getElementById('allergene-id').value;
+    const nome = document.getElementById('allergene-nome').value.trim();
+
+    // Evita di creare (o rinominare in) un allergene con lo stesso nome di uno già esistente
+    const nomeGiaUsato = allergeniCache.some(a => a.id !== id && a.nome.trim().toLowerCase() === nome.toLowerCase());
+    if (nomeGiaUsato) {
+      showMsg('allergene-msg', `Esiste già un allergene chiamato "${nome}".`, 'error');
+      return;
+    }
+
     const payload = {
       tenant_id: currentTenantId,
-      nome: document.getElementById('allergene-nome').value.trim(),
+      nome,
       icona: document.getElementById('allergene-icona').value.trim() || '⚠️',
       ordine_visualizzazione: id ? undefined : allergeniCache.length
     };
@@ -2585,17 +2594,27 @@ const ICONE_CATEGORIA_BASE64 = {
     await caricaAllergeni();
   });
 
-  document.getElementById('btn-allergeni-standard').addEventListener('click', async () => {
-    const nomiEsistenti = new Set(allergeniCache.map(a => a.nome.trim().toLowerCase()));
-    const daAggiungere = ALLERGENI_STANDARD_UE.filter(([icona, nome]) => !nomiEsistenti.has(nome.toLowerCase()));
-    if (!daAggiungere.length) { alert('Ci sono già tutti.'); return; }
-    let prossimoOrdine = allergeniCache.length;
-    const righe = daAggiungere.map(([icona, nome]) => ({
-      tenant_id: currentTenantId, nome, icona, ordine_visualizzazione: prossimoOrdine++
-    }));
-    const { error } = await sbClient.from('allergeni').insert(righe);
-    if (error) { alert('Errore: ' + error.message); return; }
-    await caricaAllergeni();
+  document.getElementById('btn-allergeni-standard').addEventListener('click', async (e) => {
+    const btn = e.currentTarget;
+    if (btn.disabled) return; // evita che un doppio click crei doppioni prima che la pagina si aggiorni
+    btn.disabled = true;
+    const testoOriginale = btn.textContent;
+    btn.textContent = 'Aggiungo...';
+    try {
+      const nomiEsistenti = new Set(allergeniCache.map(a => a.nome.trim().toLowerCase()));
+      const daAggiungere = ALLERGENI_STANDARD_UE.filter(([icona, nome]) => !nomiEsistenti.has(nome.toLowerCase()));
+      if (!daAggiungere.length) { alert('Ci sono già tutti.'); return; }
+      let prossimoOrdine = allergeniCache.length;
+      const righe = daAggiungere.map(([icona, nome]) => ({
+        tenant_id: currentTenantId, nome, icona, ordine_visualizzazione: prossimoOrdine++
+      }));
+      const { error } = await sbClient.from('allergeni').insert(righe);
+      if (error) { alert('Errore: ' + error.message); return; }
+      await caricaAllergeni();
+    } finally {
+      btn.disabled = false;
+      btn.textContent = testoOriginale;
+    }
   });
 
   // Checklist allergeni nel form prodotto (semplice: nessuna opzione/prezzo, solo spunta sì/no)
