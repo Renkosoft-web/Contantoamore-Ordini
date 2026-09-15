@@ -296,6 +296,29 @@
     font-size: 10px; font-weight: 800; letter-spacing: 0.5px; padding: 3px 8px; border-radius: 20px;
     margin-bottom: 4px; text-transform: uppercase;
   }
+  .prodotto-allergeni { font-size: 14px; margin-top: 4px; letter-spacing: 1px; }
+
+  .filtro-allergeni-barra {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 10px 14px; margin: 0 0 16px; font-size: 13px; font-weight: 600; color: var(--verde);
+  }
+  .filtro-allergeni-barra .conteggio {
+    background: var(--accent); color: #fff; border-radius: 50%; width: 18px; height: 18px;
+    font-size: 11px; display: inline-flex; align-items: center; justify-content: center; margin-left: 6px;
+  }
+  .filtro-allergeni-avviso {
+    background: rgba(217,97,79,0.12); border: 1px solid rgba(217,97,79,0.3); color: var(--error);
+    border-radius: var(--radius); padding: 10px 14px; margin: 0 0 16px; font-size: 13px; display: flex;
+    align-items: center; justify-content: space-between; gap: 10px;
+  }
+  .filtro-allergeni-avviso button { width: auto; padding: 4px 10px; font-size: 12px; }
+  .lista-allergeni-filtro label {
+    display: flex; align-items: center; gap: 10px; padding: 10px 4px; border-bottom: 1px solid var(--border); cursor: pointer; font-size: 15px;
+  }
+  .lista-allergeni-filtro label:last-child { border-bottom: none; }
+  .lista-allergeni-filtro input { width: 22px; height: 22px; accent-color: var(--accent); }
+  .lista-allergeni-filtro .icona { font-size: 22px; }
   .badge-qty-prodotto {
     position: absolute; top: -8px; left: -8px; background: var(--accent); color: var(--accent-ink);
     min-width: 24px; height: 24px; padding: 0 6px; border-radius: 12px; border: 2px solid var(--panel);
@@ -620,6 +643,17 @@
   <div class="sub-content" id="contatti-contenuto"></div>
 </div>
 
+<!-- ============ MODAL FILTRO ALLERGENI ============ -->
+<div class="modal-backdrop" id="modal-filtro-allergeni">
+  <div class="modal-sheet">
+    <h3>Filtra per allergeni</h3>
+    <p style="color:var(--ink-dim); font-size:13px; margin-top:6px;">Spunta gli allergeni a cui sei allergico o intollerante: nasconderemo dal menu i piatti che li contengono.</p>
+    <div class="lista-allergeni-filtro" id="lista-allergeni-filtro" style="margin-top:12px; max-height:50vh; overflow-y:auto;"></div>
+    <button type="button" style="width:100%; margin-top:16px;" onclick="closeModal('modal-filtro-allergeni')">Applica</button>
+    <button type="button" class="secondary" style="width:100%; margin-top:10px;" id="btn-azzera-filtro-allergeni">Rimuovi tutti i filtri</button>
+  </div>
+</div>
+
 <!-- ============ MODAL FOTO INGRANDITA (galleria chi siamo) ============ -->
 <div class="modal-backdrop" id="modal-foto-ingrandita">
   <div class="modal-sheet" style="padding:10px; max-width:600px;">
@@ -736,7 +770,7 @@
   </div>
 </div>
 
-<div style="position:fixed; bottom:4px; right:6px; font-size:10px; color:#b2a878; z-index:1;">v2026-08-07-f (i gruppi obbligatori non contano nel limite condiviso aggiunte)</div>
+<div style="position:fixed; bottom:4px; right:6px; font-size:10px; color:#b2a878; z-index:1;">v2026-08-08-a (allergeni: icone sui prodotti + filtro "nascondi cosa contiene")</div>
 
 <!-- ============ MODAL INSTALLA APP ============ -->
 <div class="modal-backdrop" id="modal-installa-app">
@@ -820,6 +854,8 @@
   let categorieTopLevel = [];
   let figlieDiCategoria = {};
   let prodottiList = [];
+  let allergeniList = []; // tutti gli allergeni configurati per questo locale
+  let allergeniSelezionatiFiltro = new Set(); // allergeni scelti dal cliente per nascondere i piatti che li contengono
   let variazioniPerProdotto = {}; // prodotto_id -> [{variazione, opzioni:[...]}]
   let gruppiPostCarrelloPerProdotto = {}; // prodotto_id -> [{gruppo, opzioni:[...]}] mostrati DOPO "Aggiungi al carrello"
   let voceCarrelloInSospeso = null; // la riga carrello pronta da spingere dopo il popup "Hai bisogno anche"
@@ -1565,8 +1601,14 @@ La cucina non è solo ciò che mangiamo. O meglio: non è solo questo. È l'elab
       }
     });
 
+    const { data: allergeni } = await sbClient
+      .from('allergeni').select('*')
+      .eq('tenant_id', TENANT_ID)
+      .order('ordine_visualizzazione');
+    allergeniList = allergeni || [];
+
     const { data: prodotti, error: erroreProdotti } = await sbClient
-      .from('prodotti').select('*, prodotti_opzioni_variazione(opzione_variazione_id, opzioni_variazione(id, nome, prezzo_aggiuntivo, variazione_id, prodotto_riferimento_id, prodotto_riferimento:prodotto_riferimento_id(id, nome, descrizione, prezzo_base, immagine_url, attivo), variazioni(id, nome_gruppo, obbligatorio, max_scelte, tipo, ordine_visualizzazione, post_aggiunta_carrello, abilita_quantita, suggerisce_prodotti)))')
+      .from('prodotti').select('*, prodotti_opzioni_variazione(opzione_variazione_id, opzioni_variazione(id, nome, prezzo_aggiuntivo, variazione_id, prodotto_riferimento_id, prodotto_riferimento:prodotto_riferimento_id(id, nome, descrizione, prezzo_base, immagine_url, attivo), variazioni(id, nome_gruppo, obbligatorio, max_scelte, tipo, ordine_visualizzazione, post_aggiunta_carrello, abilita_quantita, suggerisce_prodotti))), prodotti_allergeni(allergene_id, allergeni(id, nome, icona))')
       .eq('tenant_id', TENANT_ID).eq('attivo', true)
       .order('ordine_visualizzazione');
     if (erroreProdotti) {
@@ -1694,10 +1736,17 @@ La cucina non è solo ciò che mangiamo. O meglio: non è solo questo. È l'elab
     const categorieById = {};
     categorieList.forEach(c => { categorieById[c.id] = c; });
 
+    // Vero se il prodotto contiene almeno uno degli allergeni che il cliente ha scelto
+    // di evitare: in quel caso non compare affatto nel menu.
+    function prodottoDaNascondere(p) {
+      if (!allergeniSelezionatiFiltro.size) return false;
+      return (p.prodotti_allergeni || []).some(pa => allergeniSelezionatiFiltro.has(pa.allergene_id));
+    }
+
     // Renderizza i prodotti di UNA categoria (padre o figlia), con i SUOI colori propri.
     // Se e' una sottocategoria (idDiversoDalPadre = true) mostra anche il suo titolo.
     function renderBloccoProdotti(g, eSottocategoria) {
-      const prodottiG = prodottiList.filter(p => p.categoria_id === g.id);
+      const prodottiG = prodottiList.filter(p => p.categoria_id === g.id && !prodottoDaNascondere(p));
       if (!prodottiG.length) return '';
 
       const stileSezione = g.colore_sfondo_sezione ? `background-color:${g.colore_sfondo_sezione};` : '';
@@ -1714,6 +1763,9 @@ La cucina non è solo ciò che mangiamo. O meglio: non è solo questo. È l'elab
           p.colore_sfondo_bottone ? `border-color:${p.colore_sfondo_bottone};` : '',
           p.colore_testo_bottone ? `color:${p.colore_testo_bottone};` : ''
         ].join('');
+        const iconeAllergeni = (p.prodotti_allergeni || [])
+          .map(pa => pa.allergeni ? `<span title="${escapeHtml(pa.allergeni.nome)}">${escapeHtml(pa.allergeni.icona)}</span>` : '')
+          .join('');
         return `
         <div class="prodotto-card" style="${stileProdotto}" data-prodotto-id="${p.id}">
           <span class="badge-qty-prodotto" data-badge-prodotto="${p.id}">0</span>
@@ -1722,6 +1774,7 @@ La cucina non è solo ciò che mangiamo. O meglio: non è solo questo. È l'elab
             ${p.novita ? `<div class="badge-novita">🆕 Nuovo arrivo</div>` : ''}
             <div class="prodotto-nome" style="${stileNomeProdotto}">${escapeHtml(p.nome)}</div>
             ${p.descrizione ? `<div class="prodotto-desc">${escapeHtml(p.descrizione)}</div>` : ''}
+            ${iconeAllergeni ? `<div class="prodotto-allergeni">${iconeAllergeni}</div>` : ''}
             <div class="prodotto-prezzo">${formatEuro(p.prezzo_base)}</div>
           </div>
           <button class="btn-aggiungi" style="${stileBottone}" onclick="apriDettaglioProdotto('${p.id}')">+ Aggiungi</button>
@@ -1742,7 +1795,7 @@ La cucina non è solo ciò che mangiamo. O meglio: non è solo questo. È l'elab
       return `<div style="${stileSezione}">${prodottiHtml}</div>`;
     }
 
-    main.innerHTML = categorieTopLevel.map(cat => {
+    const bloccoCategorieHtml = categorieTopLevel.map(cat => {
       const idFiglie = figlieDiCategoria[cat.id] || [];
       const bloccoPadre = renderBloccoProdotti(cat, false);
       const blocchiFiglie = idFiglie.map(id => categorieById[id]).filter(Boolean)
@@ -1761,8 +1814,62 @@ La cucina non è solo ciò che mangiamo. O meglio: non è solo questo. È l'elab
           ${blocchiFiglie}
         </div>
       `;
-    }).join('') + renderFooterLocale();
+    }).join('');
+
+    main.innerHTML = renderBarraFiltroAllergeni() + bloccoCategorieHtml + renderFooterLocale();
   }
+
+  // Barra in cima al menu per aprire il filtro allergeni, più un avviso ben visibile
+  // (con pulsante per rimuoverlo subito) quando un filtro è già attivo.
+  function renderBarraFiltroAllergeni() {
+    if (!allergeniList.length) return '';
+    const numAttivi = allergeniSelezionatiFiltro.size;
+    let html = `
+      <div class="filtro-allergeni-barra" onclick="apriFiltroAllergeni()" style="cursor:pointer;">
+        <span>⚠️ Filtra per allergeni${numAttivi ? `<span class="conteggio">${numAttivi}</span>` : ''}</span>
+        <span style="color:var(--ink-dim); font-weight:400;">›</span>
+      </div>
+    `;
+    if (numAttivi) {
+      const nomi = allergeniList.filter(a => allergeniSelezionatiFiltro.has(a.id)).map(a => `${a.icona} ${escapeHtml(a.nome)}`).join(', ');
+      html += `
+        <div class="filtro-allergeni-avviso">
+          <span>Nascosti i piatti con: ${nomi}</span>
+          <button type="button" class="secondary" onclick="azzeraFiltroAllergeni()">Rimuovi</button>
+        </div>
+      `;
+    }
+    return html;
+  }
+
+  window.apriFiltroAllergeni = function() {
+    const cont = document.getElementById('lista-allergeni-filtro');
+    cont.innerHTML = allergeniList.map(a => `
+      <label>
+        <input type="checkbox" class="chk-filtro-allergene" value="${a.id}" ${allergeniSelezionatiFiltro.has(a.id) ? 'checked' : ''}>
+        <span class="icona">${escapeHtml(a.icona)}</span> ${escapeHtml(a.nome)}
+      </label>
+    `).join('');
+    cont.querySelectorAll('.chk-filtro-allergene').forEach(chk => {
+      chk.addEventListener('change', () => {
+        if (chk.checked) allergeniSelezionatiFiltro.add(chk.value);
+        else allergeniSelezionatiFiltro.delete(chk.value);
+        renderMenu();
+      });
+    });
+    openModal('modal-filtro-allergeni');
+  };
+
+  window.azzeraFiltroAllergeni = function() {
+    allergeniSelezionatiFiltro.clear();
+    renderMenu();
+  };
+
+  document.getElementById('btn-azzera-filtro-allergeni').addEventListener('click', () => {
+    allergeniSelezionatiFiltro.clear();
+    document.querySelectorAll('.chk-filtro-allergene').forEach(chk => { chk.checked = false; });
+    renderMenu();
+  });
 
   function renderFooterLocale() {
     if (!impostazioni) return '';
