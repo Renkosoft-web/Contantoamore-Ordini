@@ -337,6 +337,7 @@
     <button class="tab" data-section="scontrino">Scontrino</button>
     <button class="tab" data-section="immagini">Immagini</button>
     <button class="tab" data-section="impostazioni">Impostazioni</button>
+    <button class="tab" data-section="allergeni">Allergeni</button>
     <button class="tab" data-section="backup">Backup</button>
   </nav>
 
@@ -549,6 +550,19 @@
       </div>
     </section>
 
+    <!-- ---- ALLERGENI ---- -->
+    <section class="section" id="section-allergeni">
+      <div class="section-header">
+        <h2>Allergeni</h2>
+        <div style="display:flex; gap:8px;">
+          <button type="button" class="secondary" id="btn-allergeni-standard">📋 Aggiungi i 14 standard UE</button>
+          <button id="btn-nuovo-allergene">+ Nuovo allergene</button>
+        </div>
+      </div>
+      <p class="meta" style="margin-bottom:14px;">Crea qui gli allergeni, poi collegali ai singoli prodotti dalla loro scheda. Compariranno come icona sul sito, e i clienti potranno filtrare il menu escludendo quelli a cui sono allergici.</p>
+      <div id="lista-allergeni"></div>
+    </section>
+
     <!-- ---- BACKUP ---- -->
     <section class="section" id="section-backup">
       <div class="section-header">
@@ -613,6 +627,31 @@
       </div>
     </section>
   </main>
+</div>
+
+<!-- ============ MODAL ALLERGENE ============ -->
+<div class="modal-backdrop" id="modal-allergene">
+  <div class="modal">
+    <h3 id="modal-allergene-title">Nuovo allergene</h3>
+    <form id="form-allergene">
+      <input type="hidden" id="allergene-id">
+      <div class="row-2">
+        <div>
+          <label for="allergene-icona">Icona (emoji)</label>
+          <input type="text" id="allergene-icona" placeholder="🌾" maxlength="4" value="⚠️">
+        </div>
+        <div style="flex:2;">
+          <label for="allergene-nome">Nome</label>
+          <input type="text" id="allergene-nome" placeholder="Es. Glutine" required>
+        </div>
+      </div>
+      <div class="msg" id="allergene-msg"></div>
+      <div class="modal-actions">
+        <button type="button" class="secondary" onclick="closeModal('modal-allergene')">Annulla</button>
+        <button type="submit">Salva</button>
+      </div>
+    </form>
+  </div>
 </div>
 
 <!-- ============ MODAL CATEGORIA ============ -->
@@ -834,6 +873,11 @@
         <div id="riepilogo-variazioni-chips" style="display:flex; flex-wrap:wrap; gap:6px; max-height:220px; overflow-y:auto; padding-right:4px;"></div>
       </div>
 
+      <label style="margin-top:20px;">Allergeni contenuti</label>
+      <div id="prodotto-allergeni-checklist" style="background:var(--panel-2); border:1px solid var(--border); border-radius:8px; padding:12px; display:flex; flex-wrap:wrap; gap:8px;">
+        <div class="empty-state" style="padding:6px;">Nessun allergene creato. Vai nella tab "Allergeni" per crearne uno.</div>
+      </div>
+
       <div style="margin-top:16px; padding-top:14px; border-top:1px solid var(--border);">
         <label style="display:flex; align-items:center; gap:8px; margin-top:0;">
           <input type="checkbox" id="prodotto-limita-aggiunte" style="width:auto;"> Attiva massimo ingredienti possibili in aggiunta
@@ -1053,6 +1097,7 @@
   let categorieCache = [];
   let prodottiCache = [];
   let variazioniCache = [];
+  let allergeniCache = [];
 
   // ================= UTIL =================
   function showMsg(id, text, type) {
@@ -1132,6 +1177,7 @@
 
       await caricaCategorie();
       await caricaVariazioniGruppi();
+      await caricaAllergeni();
       await caricaProdotti();
       await caricaImpostazioni();
       await caricaStampanti();
@@ -1406,7 +1452,7 @@
   async function caricaProdotti() {
     const { data, error } = await sbClient
       .from('prodotti')
-      .select('*, categorie(nome), prodotti_opzioni_variazione(opzione_variazione_id)')
+      .select('*, categorie(nome), prodotti_opzioni_variazione(opzione_variazione_id), prodotti_allergeni(allergene_id)')
       .eq('tenant_id', currentTenantId)
       .order('ordine_visualizzazione');
 
@@ -1441,6 +1487,9 @@
 
     cont.innerHTML = prodottiFiltrati.map(p => {
       const nVar = (p.prodotti_opzioni_variazione || []).length;
+      const iconeAllergeni = (p.prodotti_allergeni || [])
+        .map(pa => { const a = allergeniCache.find(x => x.id === pa.allergene_id); return a ? a.icona : ''; })
+        .filter(Boolean).join(' ');
       return `
       <div class="list-item" ${trascinabile ? `draggable="true" data-id="${p.id}" style="cursor:grab;"` : ''}>
         <div class="item-main">
@@ -1455,7 +1504,7 @@
                   onclick="event.stopPropagation()">
               </span>
             </div>
-            <div class="meta">${p.categorie ? escapeHtml(p.categorie.nome) : 'Senza categoria'} · <span class="badge ${p.attivo ? '' : 'off'}">${p.attivo ? 'Attivo' : 'Disattivo'}</span>${nVar ? ' · <span class="badge">' + nVar + ' variazioni</span>' : ''}</div>
+            <div class="meta">${p.categorie ? escapeHtml(p.categorie.nome) : 'Senza categoria'} · <span class="badge ${p.attivo ? '' : 'off'}">${p.attivo ? 'Attivo' : 'Disattivo'}</span>${nVar ? ' · <span class="badge">' + nVar + ' variazioni</span>' : ''}${iconeAllergeni ? ' · ' + iconeAllergeni : ''}</div>
           </div>
         </div>
         <div class="item-actions">
@@ -2144,6 +2193,7 @@
 
     document.getElementById('prodotto-ordine').value = calcolaProssimoOrdineProdotto(document.getElementById('prodotto-categoria').value);
     renderChecklistVariazioniProdotto([]);
+    renderChecklistAllergeniProdotto([]);
     clearMsg('prodotto-msg');
     openModal('modal-prodotto');
   });
@@ -2173,6 +2223,8 @@
     else preview.classList.remove('show');
     const opzioniSelezionate = (p.prodotti_opzioni_variazione || []).map(pv => pv.opzione_variazione_id);
     renderChecklistVariazioniProdotto(opzioniSelezionate);
+    const allergeniSelezionati = (p.prodotti_allergeni || []).map(pa => pa.allergene_id);
+    renderChecklistAllergeniProdotto(allergeniSelezionati);
     document.getElementById('modal-prodotto-title').textContent = 'Modifica prodotto';
     clearMsg('prodotto-msg');
     openModal('modal-prodotto');
@@ -2270,6 +2322,16 @@
         if (errInsertVar) throw errInsertVar;
       }
 
+      // Sincronizza gli allergeni selezionati (stesso schema: elimina tutti e reinserisce quelli spuntati)
+      const allergeniSelezionati = Array.from(selezioneAllergeniCorrente);
+      const { error: errDeleteAll } = await sbClient.from('prodotti_allergeni').delete().eq('prodotto_id', prodottoId);
+      if (errDeleteAll) throw errDeleteAll;
+      if (allergeniSelezionati.length) {
+        const righeAll = allergeniSelezionati.map(allergeneId => ({ prodotto_id: prodottoId, allergene_id: allergeneId }));
+        const { error: errInsertAll } = await sbClient.from('prodotti_allergeni').insert(righeAll);
+        if (errInsertAll) throw errInsertAll;
+      }
+
       closeModal('modal-prodotto');
       await caricaProdotti();
     } catch (err) {
@@ -2295,6 +2357,134 @@
       (v.opzioni_variazione || []).sort((a, b) => a.nome.localeCompare(b.nome, 'it'));
     });
     renderGruppiVariazioni();
+  }
+
+  // ================= ALLERGENI =================
+  const ALLERGENI_STANDARD_UE = [
+    ['🌾', 'Glutine'], ['🦐', 'Crostacei'], ['🥚', 'Uova'], ['🐟', 'Pesce'],
+    ['🥜', 'Arachidi'], ['🫘', 'Soia'], ['🥛', 'Latte'], ['🌰', 'Frutta a guscio'],
+    ['🥬', 'Sedano'], ['🟡', 'Senape'], ['🌱', 'Sesamo'], ['🍷', 'Anidride solforosa e solfiti'],
+    ['🫛', 'Lupini'], ['🐚', 'Molluschi']
+  ];
+
+  async function caricaAllergeni() {
+    const { data, error } = await sbClient
+      .from('allergeni').select('*')
+      .eq('tenant_id', currentTenantId)
+      .order('ordine_visualizzazione', { ascending: true });
+    if (error) { console.error(error); return; }
+    allergeniCache = data || [];
+    renderListaAllergeni();
+  }
+
+  function renderListaAllergeni() {
+    const cont = document.getElementById('lista-allergeni');
+    if (!cont) return;
+    if (!allergeniCache.length) {
+      cont.innerHTML = '<div class="empty-state">Nessun allergene ancora. Creane uno, o usa "Aggiungi i 14 standard UE".</div>';
+      return;
+    }
+    cont.innerHTML = allergeniCache.map(a => `
+      <div class="list-item">
+        <div class="item-main">
+          <span style="font-size:24px;">${escapeHtml(a.icona)}</span>
+          <div class="item-info">
+            <div class="name">${escapeHtml(a.nome)}</div>
+          </div>
+        </div>
+        <div class="item-actions">
+          <button class="secondary" onclick="modificaAllergene('${a.id}')">Modifica</button>
+          <button class="danger" onclick="eliminaAllergene('${a.id}')">Elimina</button>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  document.getElementById('btn-nuovo-allergene').addEventListener('click', () => {
+    document.getElementById('form-allergene').reset();
+    document.getElementById('allergene-id').value = '';
+    document.getElementById('allergene-icona').value = '⚠️';
+    document.getElementById('modal-allergene-title').textContent = 'Nuovo allergene';
+    clearMsg('allergene-msg');
+    openModal('modal-allergene');
+  });
+
+  window.modificaAllergene = function(id) {
+    const a = allergeniCache.find(x => x.id === id);
+    if (!a) return;
+    document.getElementById('allergene-id').value = a.id;
+    document.getElementById('allergene-icona').value = a.icona;
+    document.getElementById('allergene-nome').value = a.nome;
+    document.getElementById('modal-allergene-title').textContent = 'Modifica allergene';
+    clearMsg('allergene-msg');
+    openModal('modal-allergene');
+  };
+
+  window.eliminaAllergene = async function(id) {
+    if (!confirm('Eliminare questo allergene? Verrà scollegato da tutti i prodotti che lo usano.')) return;
+    const { error } = await sbClient.from('allergeni').delete().eq('id', id);
+    if (error) { alert('Errore: ' + error.message); return; }
+    await caricaAllergeni();
+    await caricaProdotti();
+  };
+
+  document.getElementById('form-allergene').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    clearMsg('allergene-msg');
+    const id = document.getElementById('allergene-id').value;
+    const payload = {
+      tenant_id: currentTenantId,
+      nome: document.getElementById('allergene-nome').value.trim(),
+      icona: document.getElementById('allergene-icona').value.trim() || '⚠️',
+      ordine_visualizzazione: id ? undefined : allergeniCache.length
+    };
+    if (id) delete payload.ordine_visualizzazione;
+    let error;
+    if (id) {
+      ({ error } = await sbClient.from('allergeni').update(payload).eq('id', id));
+    } else {
+      ({ error } = await sbClient.from('allergeni').insert(payload));
+    }
+    if (error) { showMsg('allergene-msg', 'Errore: ' + error.message, 'error'); return; }
+    closeModal('modal-allergene');
+    await caricaAllergeni();
+  });
+
+  document.getElementById('btn-allergeni-standard').addEventListener('click', async () => {
+    const nomiEsistenti = new Set(allergeniCache.map(a => a.nome.trim().toLowerCase()));
+    const daAggiungere = ALLERGENI_STANDARD_UE.filter(([icona, nome]) => !nomiEsistenti.has(nome.toLowerCase()));
+    if (!daAggiungere.length) { alert('Ci sono già tutti.'); return; }
+    let prossimoOrdine = allergeniCache.length;
+    const righe = daAggiungere.map(([icona, nome]) => ({
+      tenant_id: currentTenantId, nome, icona, ordine_visualizzazione: prossimoOrdine++
+    }));
+    const { error } = await sbClient.from('allergeni').insert(righe);
+    if (error) { alert('Errore: ' + error.message); return; }
+    await caricaAllergeni();
+  });
+
+  // Checklist allergeni nel form prodotto (semplice: nessuna opzione/prezzo, solo spunta sì/no)
+  let selezioneAllergeniCorrente = new Set();
+
+  function renderChecklistAllergeniProdotto(allergeniSelezionati) {
+    selezioneAllergeniCorrente = new Set(allergeniSelezionati || []);
+    const cont = document.getElementById('prodotto-allergeni-checklist');
+    if (!allergeniCache.length) {
+      cont.innerHTML = '<div class="empty-state" style="padding:6px;">Nessun allergene creato. Vai nella tab "Allergeni" per crearne uno.</div>';
+      return;
+    }
+    cont.innerHTML = allergeniCache.map(a => `
+      <label style="display:flex; align-items:center; gap:6px; background:var(--panel); border:1px solid var(--border); border-radius:20px; padding:6px 12px; cursor:pointer; font-size:13px;">
+        <input type="checkbox" class="chk-allergene-prodotto" value="${a.id}" style="width:auto;" ${selezioneAllergeniCorrente.has(a.id) ? 'checked' : ''}>
+        ${escapeHtml(a.icona)} ${escapeHtml(a.nome)}
+      </label>
+    `).join('');
+    cont.querySelectorAll('.chk-allergene-prodotto').forEach(chk => {
+      chk.addEventListener('change', () => {
+        if (chk.checked) selezioneAllergeniCorrente.add(chk.value);
+        else selezioneAllergeniCorrente.delete(chk.value);
+      });
+    });
   }
 
   function renderGruppiVariazioni() {
