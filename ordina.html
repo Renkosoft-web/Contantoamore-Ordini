@@ -693,6 +693,7 @@
       <div style="flex:1; min-width:0;">
         <h3 id="dettaglio-nome" style="margin:0;"></h3>
         <p id="dettaglio-descrizione" style="color:var(--ink-dim); font-size:13px; margin-top:4px;"></p>
+        <div id="dettaglio-allergeni" style="font-size:13px; margin-top:4px; display:none;"></div>
       </div>
     </div>
 
@@ -770,7 +771,7 @@
   </div>
 </div>
 
-<div style="position:fixed; bottom:4px; right:6px; font-size:10px; color:#b2a878; z-index:1;">v2026-08-08-a (allergeni: icone sui prodotti + filtro "nascondi cosa contiene")</div>
+<div style="position:fixed; bottom:4px; right:6px; font-size:10px; color:#b2a878; z-index:1;">v2026-08-08-b (allergeni visibili anche nel dettaglio scelta variazioni)</div>
 
 <!-- ============ MODAL INSTALLA APP ============ -->
 <div class="modal-backdrop" id="modal-installa-app">
@@ -2105,6 +2106,14 @@ La cucina non è solo ciò che mangiamo. O meglio: non è solo questo. È l'elab
     document.getElementById('dettaglio-qty').textContent = '1';
     document.getElementById('dettaglio-nome').textContent = prodottoInDettaglio.nome;
     document.getElementById('dettaglio-descrizione').textContent = prodottoInDettaglio.descrizione || '';
+    const contAllergeni = document.getElementById('dettaglio-allergeni');
+    const allergeniProdotto = (prodottoInDettaglio.prodotti_allergeni || []).filter(pa => pa.allergeni);
+    if (allergeniProdotto.length) {
+      contAllergeni.innerHTML = 'Allergeni: ' + allergeniProdotto.map(pa => `${escapeHtml(pa.allergeni.icona)} ${escapeHtml(pa.allergeni.nome)}`).join(', ');
+      contAllergeni.style.display = 'block';
+    } else {
+      contAllergeni.style.display = 'none';
+    }
     const imgDettaglio = document.getElementById('dettaglio-immagine');
     if (prodottoInDettaglio.immagine_url) {
       imgDettaglio.src = prodottoInDettaglio.immagine_url;
