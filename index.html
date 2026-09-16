@@ -1246,6 +1246,7 @@ const ICONE_CATEGORIA_BASE64 = {
       tab.classList.add('active');
       document.getElementById('section-' + tab.dataset.section).classList.add('active');
       if (tab.dataset.section === 'immagini') caricaImmagini();
+      if (tab.dataset.section === 'allergeni') caricaAllergeni();
       if (tab.dataset.section === 'ordini') {
         const campoData = document.getElementById('filtro-data-ordini');
         campoData.value = new Date().toISOString().split('T')[0];
@@ -2507,8 +2508,18 @@ const ICONE_CATEGORIA_BASE64 = {
       .from('allergeni').select('*')
       .eq('tenant_id', currentTenantId)
       .order('ordine_visualizzazione', { ascending: true });
-    if (error) { console.error(error); return; }
+    if (error) {
+      console.error(error);
+      alert('Errore caricando gli allergeni: ' + error.message);
+      return;
+    }
     allergeniCache = data || [];
+    if (!allergeniCache.length) {
+      // Diagnostica temporanea: la query non da' errore ma non trova righe.
+      // Serve a confrontare questo tenant_id con quello salvato davvero sulle righe
+      // nella tabella "allergeni" (Table Editor su Supabase), per capire se combaciano.
+      alert('Diagnostica allergeni: query eseguita senza errori ma 0 righe trovate.\nTenant ID usato dall\'admin: ' + currentTenantId);
+    }
     renderListaAllergeni();
   }
 
