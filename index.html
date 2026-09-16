@@ -221,6 +221,9 @@
     padding: 20px;
     z-index: 100;
   }
+  /* Il dettaglio ordine deve poter aprirsi sopra ad altri popup già aperti
+     (es. dallo storico cliente), qualunque sia l'ordine nel markup. */
+  #modal-dettaglio-ordine { z-index: 200; }
   .modal-backdrop.show { display: flex; }
 
   .modal {
@@ -338,6 +341,7 @@
     <button class="tab" data-section="immagini">Immagini</button>
     <button class="tab" data-section="impostazioni">Impostazioni</button>
     <button class="tab" data-section="allergeni">Allergeni</button>
+    <button class="tab" data-section="statistiche">Statistiche</button>
     <button class="tab" data-section="backup">Backup</button>
   </nav>
 
@@ -561,6 +565,81 @@
       </div>
       <p class="meta" style="margin-bottom:14px;">Crea qui gli allergeni, poi collegali ai singoli prodotti dalla loro scheda. Compariranno come icona sul sito, e i clienti potranno filtrare il menu escludendo quelli a cui sono allergici.</p>
       <div id="lista-allergeni"></div>
+    </section>
+
+    <!-- ---- STATISTICHE ---- -->
+    <section class="section" id="section-statistiche">
+      <div class="section-header">
+        <h2>Statistiche</h2>
+      </div>
+
+      <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end; margin-bottom:20px;">
+        <div>
+          <label style="margin-top:0;">Dal</label>
+          <input type="date" id="stat-data-da">
+        </div>
+        <div>
+          <label style="margin-top:0;">Al</label>
+          <input type="date" id="stat-data-a">
+        </div>
+        <button type="button" id="btn-stat-applica" style="height:42px;">Applica</button>
+        <button type="button" class="secondary" id="btn-stat-mese-corrente" style="height:42px;">Questo mese</button>
+        <button type="button" class="secondary" id="btn-stat-tutto" style="height:42px;">Da sempre</button>
+      </div>
+
+      <div id="stat-riepilogo" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(160px, 1fr)); gap:12px; margin-bottom:24px;"></div>
+
+      <div style="display:grid; grid-template-columns:1fr; gap:24px;">
+        <div>
+          <h3 style="margin-bottom:10px;">Venduto per prodotto</h3>
+          <div style="overflow-x:auto;">
+            <table id="stat-tabella-prodotti" style="width:100%; border-collapse:collapse; font-size:13px;">
+              <thead>
+                <tr style="text-align:left; border-bottom:1px solid var(--border);">
+                  <th style="padding:8px 6px;">Prodotto</th>
+                  <th style="padding:8px 6px; text-align:right;">Quantità</th>
+                  <th style="padding:8px 6px; text-align:right;">Incasso</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div>
+          <h3 style="margin-bottom:10px;">Venduto per giorno</h3>
+          <div style="overflow-x:auto;">
+            <table id="stat-tabella-giorni" style="width:100%; border-collapse:collapse; font-size:13px;">
+              <thead>
+                <tr style="text-align:left; border-bottom:1px solid var(--border);">
+                  <th style="padding:8px 6px;">Data</th>
+                  <th style="padding:8px 6px; text-align:right;">Ordini</th>
+                  <th style="padding:8px 6px; text-align:right;">Incasso</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div>
+          <h3 style="margin-bottom:10px;">Tutti gli ordini nel periodo</h3>
+          <div style="overflow-x:auto;">
+            <table id="stat-tabella-ordini" style="width:100%; border-collapse:collapse; font-size:13px;">
+              <thead>
+                <tr style="text-align:left; border-bottom:1px solid var(--border);">
+                  <th style="padding:8px 6px;">N. ordine</th>
+                  <th style="padding:8px 6px;">Cliente</th>
+                  <th style="padding:8px 6px;">Ritiro</th>
+                  <th style="padding:8px 6px;">Stato</th>
+                  <th style="padding:8px 6px; text-align:right;">Totale</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
     </section>
 
     <!-- ---- BACKUP ---- -->
@@ -1247,6 +1326,7 @@ const ICONE_CATEGORIA_BASE64 = {
       document.getElementById('section-' + tab.dataset.section).classList.add('active');
       if (tab.dataset.section === 'immagini') caricaImmagini();
       if (tab.dataset.section === 'allergeni') caricaAllergeni();
+      if (tab.dataset.section === 'statistiche') caricaStatistiche();
       if (tab.dataset.section === 'ordini') {
         const campoData = document.getElementById('filtro-data-ordini');
         campoData.value = new Date().toISOString().split('T')[0];
@@ -3683,7 +3763,7 @@ const ICONE_CATEGORIA_BASE64 = {
       const pagatoConPrepagato = mappaMovimenti[o.id] !== undefined;
       const data = new Date(o.data_ritiro + 'T' + o.ora_ritiro).toLocaleDateString('it-IT');
       return `
-        <div class="list-item">
+        <div class="list-item" style="cursor:pointer;" onclick="apriDettaglioOrdine('${o.id}')">
           <div class="item-main">
             <div class="item-info">
               <div class="name">€${Number(o.totale).toFixed(2)} — ${data} alle ${o.ora_ritiro.slice(0,5)}</div>
@@ -3846,6 +3926,146 @@ const ICONE_CATEGORIA_BASE64 = {
     document.getElementById('dettaglio-ordine-note').textContent = o.note ? ('Note: ' + o.note) : '';
     openModal('modal-dettaglio-ordine');
   };
+
+  // ================= STATISTICHE =================
+  let statisticheInizializzate = false;
+
+  function impostaIntervalloMeseCorrente() {
+    const oggi = new Date();
+    const primoDelMese = new Date(oggi.getFullYear(), oggi.getMonth(), 1);
+    document.getElementById('stat-data-da').value = primoDelMese.toISOString().split('T')[0];
+    document.getElementById('stat-data-a').value = oggi.toISOString().split('T')[0];
+  }
+
+  async function caricaStatistiche() {
+    if (!statisticheInizializzate) {
+      statisticheInizializzate = true;
+      impostaIntervalloMeseCorrente();
+    }
+    await eseguiStatistiche();
+  }
+
+  document.getElementById('btn-stat-applica').addEventListener('click', eseguiStatistiche);
+  document.getElementById('btn-stat-mese-corrente').addEventListener('click', () => {
+    impostaIntervalloMeseCorrente();
+    eseguiStatistiche();
+  });
+  document.getElementById('btn-stat-tutto').addEventListener('click', () => {
+    document.getElementById('stat-data-da').value = '';
+    document.getElementById('stat-data-a').value = '';
+    eseguiStatistiche();
+  });
+
+  async function eseguiStatistiche() {
+    const dataDa = document.getElementById('stat-data-da').value;
+    const dataA = document.getElementById('stat-data-a').value;
+
+    let query = sbClient
+      .from('ordini')
+      .select('id, numero_ordine, totale, data_ritiro, ora_ritiro, stato, clienti(nome, cognome)')
+      .eq('tenant_id', currentTenantId)
+      .neq('stato', 'in_creazione'); // esclude i carrelli mai finalizzati
+    if (dataDa) query = query.gte('data_ritiro', dataDa);
+    if (dataA) query = query.lte('data_ritiro', dataA);
+    query = query.order('data_ritiro', { ascending: false }).order('ora_ritiro', { ascending: false });
+
+    const { data: ordiniPeriodo, error: errOrdini } = await query;
+    if (errOrdini) { alert('Errore caricando le statistiche: ' + errOrdini.message); return; }
+
+    const idOrdini = (ordiniPeriodo || []).map(o => o.id);
+    let righePeriodo = [];
+    if (idOrdini.length) {
+      const { data: righe, error: errRighe } = await sbClient
+        .from('ordini_righe').select('ordine_id, prodotto_nome, quantita, prezzo_riga')
+        .in('ordine_id', idOrdini);
+      if (errRighe) { alert('Errore caricando i dettagli venduti: ' + errRighe.message); return; }
+      righePeriodo = righe || [];
+    }
+
+    renderStatistiche(ordiniPeriodo || [], righePeriodo);
+  }
+
+  function renderStatistiche(ordini, righe) {
+    // ---- Riepilogo generale ----
+    const numeroOrdini = ordini.length;
+    const totaleVenduto = ordini.reduce((s, o) => s + Number(o.totale || 0), 0);
+    const scontrinoMedio = numeroOrdini ? totaleVenduto / numeroOrdini : 0;
+
+    document.getElementById('stat-riepilogo').innerHTML = [
+      ['Ordini nel periodo', numeroOrdini],
+      ['Totale venduto', '€' + totaleVenduto.toFixed(2)],
+      ['Scontrino medio', '€' + scontrinoMedio.toFixed(2)]
+    ].map(([etichetta, valore]) => `
+      <div style="background:var(--panel); border:1px solid var(--border); border-radius:var(--radius); padding:16px;">
+        <div style="font-size:12px; color:var(--ink-dim);">${etichetta}</div>
+        <div style="font-size:24px; font-weight:800; color:var(--accent); margin-top:4px;">${valore}</div>
+      </div>
+    `).join('');
+
+    // ---- Venduto per prodotto ----
+    const perProdotto = {};
+    righe.forEach(r => {
+      const nome = r.prodotto_nome || 'Sconosciuto';
+      if (!perProdotto[nome]) perProdotto[nome] = { quantita: 0, incasso: 0 };
+      perProdotto[nome].quantita += Number(r.quantita || 0);
+      perProdotto[nome].incasso += Number(r.prezzo_riga || 0);
+    });
+    const prodottiOrdinati = Object.entries(perProdotto).sort((a, b) => b[1].incasso - a[1].incasso);
+    const corpoProdotti = document.querySelector('#stat-tabella-prodotti tbody');
+    corpoProdotti.innerHTML = prodottiOrdinati.length
+      ? prodottiOrdinati.map(([nome, dati]) => `
+          <tr style="border-bottom:1px solid var(--border);">
+            <td style="padding:7px 6px;">${escapeHtml(nome)}</td>
+            <td style="padding:7px 6px; text-align:right;">${dati.quantita}</td>
+            <td style="padding:7px 6px; text-align:right;">€${dati.incasso.toFixed(2)}</td>
+          </tr>
+        `).join('')
+      : '<tr><td colspan="3" style="padding:12px 6px; color:var(--ink-dim);">Nessun dato nel periodo selezionato.</td></tr>';
+
+    // ---- Venduto per giorno ----
+    const perGiorno = {};
+    ordini.forEach(o => {
+      const giorno = o.data_ritiro;
+      if (!perGiorno[giorno]) perGiorno[giorno] = { ordini: 0, incasso: 0 };
+      perGiorno[giorno].ordini += 1;
+      perGiorno[giorno].incasso += Number(o.totale || 0);
+    });
+    const giorniOrdinati = Object.entries(perGiorno).sort((a, b) => b[0].localeCompare(a[0]));
+    const corpoGiorni = document.querySelector('#stat-tabella-giorni tbody');
+    corpoGiorni.innerHTML = giorniOrdinati.length
+      ? giorniOrdinati.map(([giorno, dati]) => `
+          <tr style="border-bottom:1px solid var(--border);">
+            <td style="padding:7px 6px;">${escapeHtml(formattaDataItaliana(giorno))}</td>
+            <td style="padding:7px 6px; text-align:right;">${dati.ordini}</td>
+            <td style="padding:7px 6px; text-align:right;">€${dati.incasso.toFixed(2)}</td>
+          </tr>
+        `).join('')
+      : '<tr><td colspan="3" style="padding:12px 6px; color:var(--ink-dim);">Nessun dato nel periodo selezionato.</td></tr>';
+
+    // ---- Elenco ordini ----
+    const corpoOrdini = document.querySelector('#stat-tabella-ordini tbody');
+    corpoOrdini.innerHTML = ordini.length
+      ? ordini.map(o => {
+          const cliente = o.clienti ? `${o.clienti.nome} ${o.clienti.cognome}` : '—';
+          return `
+            <tr style="border-bottom:1px solid var(--border);">
+              <td style="padding:7px 6px;">#${o.numero_ordine || '—'}</td>
+              <td style="padding:7px 6px;">${escapeHtml(cliente)}</td>
+              <td style="padding:7px 6px;">${escapeHtml(formattaDataItaliana(o.data_ritiro))} ${(o.ora_ritiro || '').slice(0,5)}</td>
+              <td style="padding:7px 6px;"><span class="badge">${escapeHtml(o.stato)}</span></td>
+              <td style="padding:7px 6px; text-align:right;">€${Number(o.totale).toFixed(2)}</td>
+            </tr>
+          `;
+        }).join('')
+      : '<tr><td colspan="5" style="padding:12px 6px; color:var(--ink-dim);">Nessun ordine nel periodo selezionato.</td></tr>';
+  }
+
+  // Converte una data ISO (aaaa-mm-gg) in formato italiano gg/mm/aaaa per la sola visualizzazione.
+  function formattaDataItaliana(dataIso) {
+    if (!dataIso) return '—';
+    const parti = dataIso.split('-');
+    return parti.length === 3 ? `${parti[2]}/${parti[1]}/${parti[0]}` : dataIso;
+  }
 
   // ================= TRASCINAMENTO PER RIORDINARE =================
   function abilitaTrascinamento(contenitoreId, ottieniArray, dopoRiordino, condizioneAttiva) {
