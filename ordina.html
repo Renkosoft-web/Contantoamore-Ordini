@@ -771,7 +771,7 @@
   </div>
 </div>
 
-<div style="position:fixed; bottom:4px; right:6px; font-size:10px; color:#b2a878; z-index:1;">v2026-08-08-b (allergeni visibili anche nel dettaglio scelta variazioni)</div>
+<div style="position:fixed; bottom:4px; right:6px; font-size:10px; color:#b2a878; z-index:1;">v2026-08-08-c (opzioni scelte salvano anche il tipo aggiunta/eliminazione, per la stampa)</div>
 
 <!-- ============ MODAL INSTALLA APP ============ -->
 <div class="modal-backdrop" id="modal-installa-app">
@@ -2076,7 +2076,7 @@ La cucina non è solo ciò che mangiamo. O meglio: non è solo questo. È l'elab
           const qty = span ? (parseInt(span.textContent) || 0) : 0;
           if (qty > 0) {
             extra += (Number(o.prezzo_aggiuntivo) || 0) * qty;
-            opzioniScelte.push({ gruppo: g.gruppo.nome_gruppo, nome: o.nome, prezzo: Number(o.prezzo_aggiuntivo) || 0, quantita: qty });
+            opzioniScelte.push({ gruppo: g.gruppo.nome_gruppo, nome: o.nome, prezzo: Number(o.prezzo_aggiuntivo) || 0, quantita: qty, tipo: g.gruppo.tipo || 'aggiunta' });
           }
         });
       } else {
@@ -2084,7 +2084,7 @@ La cucina non è solo ciò che mangiamo. O meglio: non è solo questo. È l'elab
           const o = g.opzioni.find(x => x.id === el.value);
           if (o) {
             extra += Number(o.prezzo_aggiuntivo) || 0;
-            opzioniScelte.push({ gruppo: g.gruppo.nome_gruppo, nome: o.nome, prezzo: Number(o.prezzo_aggiuntivo) || 0 });
+            opzioniScelte.push({ gruppo: g.gruppo.nome_gruppo, nome: o.nome, prezzo: Number(o.prezzo_aggiuntivo) || 0, tipo: g.gruppo.tipo || 'aggiunta' });
           }
         });
       }
