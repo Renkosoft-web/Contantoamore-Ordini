@@ -1104,6 +1104,7 @@
     <p style="color:var(--ink-dim); font-size:13px; margin-top:4px;" id="dettaglio-ordine-info"></p>
     <div id="dettaglio-ordine-righe" style="margin-top:16px;"></div>
     <div id="dettaglio-ordine-note" style="margin-top:14px; font-size:13px; color:var(--ink-dim);"></div>
+    <div id="dettaglio-ordine-stampe" style="margin-top:14px;"></div>
     <div class="modal-actions">
       <button type="button" class="secondary" onclick="richiediRistampa(document.getElementById('dettaglio-ordine-id').value)">🖨️ Ristampa</button>
       <button type="button" class="secondary" onclick="richiediRiepilogo(document.getElementById('dettaglio-ordine-id').value)">📋 Stampa riepilogo</button>
@@ -3924,6 +3925,29 @@ const ICONE_CATEGORIA_BASE64 = {
     }
 
     document.getElementById('dettaglio-ordine-note').textContent = o.note ? ('Note: ' + o.note) : '';
+
+    const { data: stampe } = await sbClient
+      .from('ordini_stampe_dettaglio').select('*')
+      .eq('ordine_id', ordineId)
+      .order('creato_il', { ascending: true });
+
+    const contStampe = document.getElementById('dettaglio-ordine-stampe');
+    if (!stampe || !stampe.length) {
+      contStampe.innerHTML = '<div class="meta">Nessuna informazione di stampa disponibile per questo ordine.</div>';
+    } else {
+      contStampe.innerHTML = `
+        <div style="font-size:12px; color:var(--ink-dim); margin-bottom:6px;">Stampa per centro di produzione:</div>
+        ${stampe.map(s => `
+          <div style="display:flex; align-items:center; gap:8px; padding:4px 0; font-size:13px;">
+            <span>${s.riuscita ? '✅' : '❌'}</span>
+            <span style="font-weight:600;">${escapeHtml(s.nome_reparto)}</span>
+            <span class="meta">(${escapeHtml(s.ip_stampante)})</span>
+            ${!s.riuscita && s.messaggio_errore ? `<span class="meta" style="color:var(--error);">— ${escapeHtml(s.messaggio_errore)}</span>` : ''}
+          </div>
+        `).join('')}
+      `;
+    }
+
     openModal('modal-dettaglio-ordine');
   };
 
