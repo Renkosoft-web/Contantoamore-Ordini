@@ -1100,6 +1100,7 @@
 <div class="modal-backdrop" id="modal-dettaglio-ordine">
   <div class="modal">
     <input type="hidden" id="dettaglio-ordine-id">
+    <input type="hidden" id="dettaglio-ordine-numero">
     <h3>Ordine — <span id="dettaglio-ordine-cliente"></span></h3>
     <p style="color:var(--ink-dim); font-size:13px; margin-top:4px;" id="dettaglio-ordine-info"></p>
     <div id="dettaglio-ordine-righe" style="margin-top:16px;"></div>
@@ -1108,6 +1109,7 @@
     <div class="modal-actions">
       <button type="button" class="secondary" onclick="richiediRistampa(document.getElementById('dettaglio-ordine-id').value)">🖨️ Ristampa</button>
       <button type="button" class="secondary" onclick="richiediRiepilogo(document.getElementById('dettaglio-ordine-id').value)">📋 Stampa riepilogo</button>
+      <button type="button" class="danger" onclick="eliminaOrdine(document.getElementById('dettaglio-ordine-id').value, document.getElementById('dettaglio-ordine-numero').value)">🗑 Elimina ordine</button>
       <button type="button" class="secondary" onclick="closeModal('modal-dettaglio-ordine')">Chiudi</button>
     </div>
   </div>
@@ -3846,6 +3848,7 @@ const ICONE_CATEGORIA_BASE64 = {
             <button class="secondary" onclick="richiediRistampa('${o.id}')" ${o.richiesta_ristampa ? 'disabled' : ''}>Ristampa</button>
             <button class="secondary" onclick="richiediRiepilogo('${o.id}')" ${o.richiesta_riepilogo ? 'disabled' : ''}>Riepilogo</button>
             <button class="secondary" onclick="apriDettaglioOrdine('${o.id}')">Dettagli</button>
+            <button class="danger" onclick="eliminaOrdine('${o.id}', '${o.numero_ordine || ''}')">🗑</button>
           </div>
         </div>
       `;
@@ -3886,6 +3889,26 @@ const ICONE_CATEGORIA_BASE64 = {
     renderOrdini();
   });
 
+  window.eliminaOrdine = async function(ordineId, numeroOrdine) {
+    const password = prompt(`Per eliminare l'ordine${numeroOrdine ? ' #' + numeroOrdine : ''} inserisci la password:`);
+    if (password === null) return; // annullato
+    if (password !== 'tds12345') {
+      alert('Password errata. Ordine NON eliminato.');
+      return;
+    }
+    if (!confirm(`Confermi l'eliminazione definitiva dell'ordine${numeroOrdine ? ' #' + numeroOrdine : ''}? Non si può annullare.`)) return;
+
+    // Puliamo prima le tabelle collegate (nel caso non siano già impostate con
+    // cancellazione a cascata), poi l'ordine stesso.
+    await sbClient.from('ordini_righe').delete().eq('ordine_id', ordineId);
+    await sbClient.from('ordini_stampe_dettaglio').delete().eq('ordine_id', ordineId);
+    const { error } = await sbClient.from('ordini').delete().eq('id', ordineId);
+    if (error) { alert('Errore eliminando l\'ordine: ' + error.message); return; }
+
+    closeModal('modal-dettaglio-ordine');
+    await caricaOrdini();
+  };
+
   window.apriDettaglioOrdine = async function(ordineId) {
     const o = ordiniCache.find(x => x.id === ordineId);
     if (!o) return;
@@ -3894,6 +3917,7 @@ const ICONE_CATEGORIA_BASE64 = {
       sbClient.from('ordini').update({ visto: true }).eq('id', ordineId).then(() => { o.visto = true; renderOrdini(); });
     }
     document.getElementById('dettaglio-ordine-id').value = ordineId;
+    document.getElementById('dettaglio-ordine-numero').value = o.numero_ordine || '';
 
     const cliente = o.clienti ? (o.clienti.nome + ' ' + o.clienti.cognome) : 'Cliente sconosciuto';
     document.getElementById('dettaglio-ordine-cliente').textContent = cliente;
