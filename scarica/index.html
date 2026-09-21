@@ -1,1 +1,85 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Scarica ContanteAmore</title>
+<style>
+  :root {
+    --verde: #33421f;
+    --crema: #f7eecb;
+    --corallo: #e2604f;
+    --verde-chiaro: #7fa66b;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    background: var(--verde); color: var(--crema); font-family: 'Segoe UI', Roboto, Arial, sans-serif;
+    padding: 24px; padding-top: max(24px, env(safe-area-inset-top));
+    padding-bottom: max(24px, env(safe-area-inset-bottom));
+    text-align: center;
+  }
+  h1 { font-size: 26px; margin: 0 0 6px; }
+  p.sottotitolo { color: var(--verde-chiaro); font-size: 14px; margin: 0 0 32px; max-width: 320px; }
+  .scelta {
+    display: flex; flex-direction: column; gap: 16px; width: 100%; max-width: 340px;
+  }
+  .pulsante {
+    display: flex; align-items: center; gap: 14px; padding: 18px 20px; border-radius: 16px;
+    background: var(--crema); color: var(--verde); text-decoration: none; font-weight: 700; font-size: 17px;
+    border: 3px solid transparent; transition: transform 0.15s ease;
+  }
+  .pulsante:active { transform: scale(0.97); }
+  .pulsante.consigliato { border-color: var(--corallo); box-shadow: 0 0 0 3px rgba(226,96,79,0.25); }
+  .pulsante .icona { font-size: 30px; flex-shrink: 0; }
+  .pulsante .testo { text-align: left; }
+  .pulsante .testo small { display: block; font-weight: 400; font-size: 12px; color: #6b6b5a; margin-top: 2px; }
+  .badge-consigliato {
+    font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px;
+    color: var(--corallo); margin-bottom: -6px;
+  }
+  footer { margin-top: 40px; font-size: 12px; color: var(--verde-chiaro); }
+</style>
+</head>
+<body>
 
+  <h1>🍽️ ContanteAmore</h1>
+  <p class="sottotitolo">Scegli il tuo telefono per scaricare l'app e ordinare più veloce.</p>
+
+  <div class="scelta" id="scelta">
+    <div>
+      <div class="badge-consigliato" id="badge-android" style="display:none;">Rilevato sul tuo telefono</div>
+      <a class="pulsante" id="btn-android" href="https://contantoamore.pages.dev/App/contantoamore.apk">
+        <span class="icona">🤖</span>
+        <span class="testo">Android<small>Scarica e installa l'app</small></span>
+      </a>
+    </div>
+    <div>
+      <div class="badge-consigliato" id="badge-ios" style="display:none;">Rilevato sul tuo telefono</div>
+      <a class="pulsante" id="btn-ios" href="https://contantoamore.pages.dev/ordina/">
+        <span class="icona">🍏</span>
+        <span class="testo">iPhone / iPad<small>Apri il sito, poi Aggiungi a Home</small></span>
+      </a>
+    </div>
+  </div>
+
+  <footer>Puoi scegliere manualmente anche se non è quello rilevato.</footer>
+
+<script>
+  // Rileva il sistema solo per EVIDENZIARE il pulsante più probabile — l'utente
+  // può comunque scegliere liberamente l'altro, come richiesto.
+  var ua = navigator.userAgent || '';
+  var eAndroid = /Android/i.test(ua);
+  var eIOS = /iPhone|iPad|iPod/i.test(ua);
+
+  if (eAndroid) {
+    document.getElementById('btn-android').classList.add('consigliato');
+    document.getElementById('badge-android').style.display = 'block';
+  } else if (eIOS) {
+    document.getElementById('btn-ios').classList.add('consigliato');
+    document.getElementById('badge-ios').style.display = 'block';
+  }
+</script>
+
+</body>
+</html>
