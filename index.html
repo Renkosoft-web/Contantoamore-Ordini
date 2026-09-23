@@ -708,6 +708,20 @@
   </main>
 </div>
 
+<!-- ============ MODAL COLLEGA GRUPPO A CATEGORIE ============ -->
+<div class="modal-backdrop" id="modal-collega-categorie">
+  <div class="modal">
+    <h3>Collega "<span id="collega-cat-gruppo-nome"></span>" a intere categorie</h3>
+    <p class="meta" style="margin-top:-4px;">Spunta le categorie: il gruppo verrà collegato a TUTTI i prodotti già presenti in quelle categorie (quelli aggiunti dopo andranno collegati singolarmente, come sempre).</p>
+    <div id="collega-cat-lista" style="max-height:340px; overflow-y:auto; margin-top:10px;"></div>
+    <div class="msg" id="collega-cat-msg"></div>
+    <div class="modal-actions">
+      <button type="button" class="secondary" onclick="closeModal('modal-collega-categorie')">Chiudi</button>
+      <button type="button" id="btn-applica-collega-categorie">Applica</button>
+    </div>
+  </div>
+</div>
+
 <!-- ============ MODAL ALLERGENE ============ -->
 <div class="modal-backdrop" id="modal-allergene">
   <div class="modal">
@@ -730,6 +744,20 @@
         <button type="submit">Salva</button>
       </div>
     </form>
+  </div>
+</div>
+
+<!-- ============ MODAL COLLEGA OPZIONE A CATEGORIE ============ -->
+<div class="modal-backdrop" id="modal-collega-categorie-opzione">
+  <div class="modal">
+    <h3>Collega "<span id="collega-opzione-nome"></span>" a delle categorie</h3>
+    <p style="color:var(--ink-dim); font-size:13px; margin-top:4px;">Spunta le categorie: questa opzione diventerà subito disponibile su TUTTI i prodotti già esistenti in quelle categorie (i nuovi prodotti creati dopo non vengono aggiunti automaticamente).</p>
+    <div id="collega-opzione-checklist" style="max-height:280px; overflow-y:auto; margin-top:12px; background:var(--panel-2); border:1px solid var(--border); border-radius:8px; padding:12px;"></div>
+    <div class="msg" id="collega-opzione-msg"></div>
+    <div class="modal-actions">
+      <button type="button" class="secondary" onclick="closeModal('modal-collega-categorie-opzione')">Annulla</button>
+      <button type="button" onclick="confermaCollegaCategorieOpzione()">Collega</button>
+    </div>
   </div>
 </div>
 
@@ -1053,7 +1081,10 @@
 <!-- ============ MODAL OPZIONI VARIAZIONE ============ -->
 <div class="modal-backdrop" id="modal-opzioni">
   <div class="modal">
-    <h3>Opzioni — <span id="opzioni-gruppo-nome"></span></h3>
+    <h3 style="display:flex; align-items:center; justify-content:space-between; gap:10px;">
+      <span>Opzioni — <span id="opzioni-gruppo-nome"></span></span>
+      <button type="button" class="secondary" style="font-size:12px; padding:6px 10px;" onclick="apriCollegaCategorie(currentVariazioneIdOpzioni)">⋮ Collega a categorie</button>
+    </h3>
 
     <label style="display:flex; align-items:center; gap:8px; margin-bottom:14px; padding:10px 12px; background:var(--panel-2); border-radius:8px; cursor:pointer;">
       <input type="checkbox" id="opzioni-modo-prodotti" style="width:auto;">
@@ -1104,9 +1135,17 @@
     <h3>Ordine — <span id="dettaglio-ordine-cliente"></span></h3>
     <p style="color:var(--ink-dim); font-size:13px; margin-top:4px;" id="dettaglio-ordine-info"></p>
     <div id="dettaglio-ordine-righe" style="margin-top:16px;"></div>
+
+    <div style="margin-top:12px; display:flex; gap:8px;">
+      <input type="text" id="dettaglio-ordine-cerca-prodotto" placeholder="🔍 Aggiungi un prodotto..." style="flex:1;">
+    </div>
+    <div id="dettaglio-ordine-risultati-ricerca" style="max-height:180px; overflow-y:auto; margin-top:6px;"></div>
+
+    <div id="dettaglio-ordine-msg" class="msg"></div>
     <div id="dettaglio-ordine-note" style="margin-top:14px; font-size:13px; color:var(--ink-dim);"></div>
     <div id="dettaglio-ordine-stampe" style="margin-top:14px;"></div>
     <div class="modal-actions">
+      <button type="button" onclick="salvaModificheOrdine()">💾 Salva modifiche</button>
       <button type="button" class="secondary" onclick="richiediRistampa(document.getElementById('dettaglio-ordine-id').value)">🖨️ Ristampa</button>
       <button type="button" class="secondary" onclick="richiediRiepilogo(document.getElementById('dettaglio-ordine-id').value)">📋 Stampa riepilogo</button>
       <button type="button" class="danger" onclick="eliminaOrdine(document.getElementById('dettaglio-ordine-id').value, document.getElementById('dettaglio-ordine-numero').value)">🗑 Elimina ordine</button>
@@ -2753,11 +2792,83 @@ const ICONE_CATEGORIA_BASE64 = {
         <div class="item-actions">
           <button class="secondary" onclick="apriOpzioni('${v.id}')">Opzioni</button>
           <button class="secondary" onclick="modificaGruppo('${v.id}')">Modifica</button>
+          <button class="secondary" onclick="apriCollegaCategorie('${v.id}')" title="Collega a intere categorie">⋮</button>
           <button class="danger" onclick="eliminaGruppo('${v.id}')">Elimina</button>
         </div>
       </div>
     `).join('');
   }
+
+  // ================= COLLEGA GRUPPO A INTERE CATEGORIE =================
+  let collegaCatGruppoId = null;
+
+  window.apriCollegaCategorie = function(gruppoId) {
+    collegaCatGruppoId = gruppoId;
+    const gruppo = variazioniCache.find(v => v.id === gruppoId);
+    document.getElementById('collega-cat-gruppo-nome').textContent = gruppo ? gruppo.nome_gruppo : '';
+    clearMsg('collega-cat-msg');
+
+    const cont = document.getElementById('collega-cat-lista');
+    if (!categorieCache.length) {
+      cont.innerHTML = '<div class="empty-state">Nessuna categoria creata.</div>';
+    } else {
+      cont.innerHTML = categorieCache.map(c => `
+        <label style="display:flex; align-items:center; gap:10px; padding:8px 4px; border-bottom:1px solid var(--border); cursor:pointer;">
+          <input type="checkbox" class="chk-collega-categoria" value="${c.id}" style="width:auto;">
+          ${escapeHtml(c.nome)}
+        </label>
+      `).join('');
+    }
+    openModal('modal-collega-categorie');
+  };
+
+  document.getElementById('btn-applica-collega-categorie').addEventListener('click', async () => {
+    clearMsg('collega-cat-msg');
+    const idCategorie = Array.from(document.querySelectorAll('.chk-collega-categoria:checked')).map(el => el.value);
+    if (!idCategorie.length) {
+      showMsg('collega-cat-msg', 'Seleziona almeno una categoria.', 'error');
+      return;
+    }
+    const gruppo = variazioniCache.find(v => v.id === collegaCatGruppoId);
+    const idOpzioni = (gruppo?.opzioni_variazione || []).map(o => o.id);
+    if (!idOpzioni.length) {
+      showMsg('collega-cat-msg', 'Questo gruppo non ha ancora nessuna opzione: aggiungine prima almeno una.', 'error');
+      return;
+    }
+
+    const idProdotti = prodottiCache.filter(p => idCategorie.includes(p.categoria_id)).map(p => p.id);
+    if (!idProdotti.length) {
+      showMsg('collega-cat-msg', 'Le categorie selezionate non hanno ancora prodotti.', 'error');
+      return;
+    }
+
+    // Leggiamo i collegamenti già esistenti per questi prodotti, per non duplicarli.
+    const { data: esistenti, error: errLettura } = await sbClient
+      .from('prodotti_opzioni_variazione').select('prodotto_id, opzione_variazione_id')
+      .in('prodotto_id', idProdotti).in('opzione_variazione_id', idOpzioni);
+    if (errLettura) { showMsg('collega-cat-msg', 'Errore: ' + errLettura.message, 'error'); return; }
+
+    const chiaviEsistenti = new Set((esistenti || []).map(r => r.prodotto_id + '|' + r.opzione_variazione_id));
+    const righeDaInserire = [];
+    for (const prodottoId of idProdotti) {
+      for (const opzioneId of idOpzioni) {
+        if (!chiaviEsistenti.has(prodottoId + '|' + opzioneId)) {
+          righeDaInserire.push({ prodotto_id: prodottoId, opzione_variazione_id: opzioneId });
+        }
+      }
+    }
+
+    if (!righeDaInserire.length) {
+      showMsg('collega-cat-msg', 'Questo gruppo è già collegato a tutti i prodotti di quelle categorie.', 'ok');
+      return;
+    }
+
+    const { error: errInserimento } = await sbClient.from('prodotti_opzioni_variazione').insert(righeDaInserire);
+    if (errInserimento) { showMsg('collega-cat-msg', 'Errore: ' + errInserimento.message, 'error'); return; }
+
+    showMsg('collega-cat-msg', `Fatto! Collegato a ${idProdotti.length} prodotto/i (${righeDaInserire.length} nuove opzioni collegate).`, 'ok');
+    await caricaProdotti();
+  });
 
   document.getElementById('btn-nuovo-gruppo-variazione').addEventListener('click', () => {
     document.getElementById('form-gruppo-variazione').reset();
@@ -2999,7 +3110,10 @@ const ICONE_CATEGORIA_BASE64 = {
     cont.innerHTML = `<div class="var-group">` + data.map(o => `
       <div class="opt-row">
         <span>${escapeHtml(o.nome)} ${o.prezzo_aggiuntivo > 0 ? '(+€' + Number(o.prezzo_aggiuntivo).toFixed(2) + ')' : ''}</span>
-        <span class="opt-actions"><button class="danger" onclick="eliminaOpzione('${o.id}')">×</button></span>
+        <span class="opt-actions">
+          <button class="secondary" style="padding:2px 8px;" title="Collega questa opzione a tutti i prodotti di alcune categorie" onclick="apriCollegaCategorieOpzione('${o.id}', '${escapeHtml(o.nome).replace(/'/g, "\\'")}')">⋮</button>
+          <button class="danger" onclick="eliminaOpzione('${o.id}')">×</button>
+        </span>
       </div>
     `).join('') + `</div>`;
   }
@@ -3909,6 +4023,108 @@ const ICONE_CATEGORIA_BASE64 = {
     await caricaOrdini();
   };
 
+  let righeCorrentiOrdine = []; // copia di lavoro modificabile delle righe dell'ordine aperto nel dettaglio
+
+  function renderRigheOrdineModificabili() {
+    const cont = document.getElementById('dettaglio-ordine-righe');
+    if (!righeCorrentiOrdine.length) {
+      cont.innerHTML = '<div class="empty-state">Nessun prodotto in questo ordine.</div>';
+      return;
+    }
+    cont.innerHTML = righeCorrentiOrdine.map((r, indice) => `
+      <div class="opt-row">
+        <span>
+          <input type="number" min="1" value="${r.quantita}" data-indice="${indice}" class="input-qty-riga-ordine" style="width:56px; padding:4px 6px; margin-right:8px;">
+          ${escapeHtml(r.prodotto_nome)}
+          ${(r.opzioni_scelte || []).length ? '<br><span style="font-size:12px; color:var(--ink-dim); margin-left:64px;">' + r.opzioni_scelte.map(op => escapeHtml(op.gruppo + ' ' + op.nome)).join(' · ') + '</span>' : ''}
+        </span>
+        <span style="display:flex; align-items:center; gap:10px;">
+          €${(Number(r.prezzo_unitario) * r.quantita).toFixed(2)}
+          <button type="button" class="danger" style="padding:4px 8px; font-size:12px;" onclick="rimuoviRigaOrdine(${indice})">🗑</button>
+        </span>
+      </div>
+    `).join('');
+
+    cont.querySelectorAll('.input-qty-riga-ordine').forEach(input => {
+      input.addEventListener('change', () => {
+        const indice = parseInt(input.dataset.indice);
+        const nuovaQta = Math.max(1, parseInt(input.value) || 1);
+        righeCorrentiOrdine[indice].quantita = nuovaQta;
+        righeCorrentiOrdine[indice].prezzo_riga = Number(righeCorrentiOrdine[indice].prezzo_unitario) * nuovaQta;
+        renderRigheOrdineModificabili();
+      });
+    });
+  }
+
+  window.rimuoviRigaOrdine = function(indice) {
+    righeCorrentiOrdine.splice(indice, 1);
+    renderRigheOrdineModificabili();
+  };
+
+  document.getElementById('dettaglio-ordine-cerca-prodotto').addEventListener('input', (e) => {
+    const query = normalizzaTesto(e.target.value);
+    const cont = document.getElementById('dettaglio-ordine-risultati-ricerca');
+    if (!query) { cont.innerHTML = ''; return; }
+    const trovati = prodottiCache.filter(p => normalizzaTesto(p.nome).includes(query)).slice(0, 8);
+    cont.innerHTML = trovati.map(p => `
+      <div class="list-item" style="cursor:pointer; padding:8px 10px;" onclick="aggiungiProdottoAOrdine('${p.id}')">
+        <span>${escapeHtml(p.nome)}</span>
+        <span class="meta">€${Number(p.prezzo_base).toFixed(2)}</span>
+      </div>
+    `).join('') || '<div class="meta" style="padding:6px;">Nessun prodotto trovato.</div>';
+  });
+
+  window.aggiungiProdottoAOrdine = function(prodottoId) {
+    const p = prodottiCache.find(x => x.id === prodottoId);
+    if (!p) return;
+    righeCorrentiOrdine.push({
+      id: null, // nuova riga, non esiste ancora su Supabase
+      prodotto_id: p.id,
+      prodotto_nome: p.nome,
+      quantita: 1,
+      opzioni_scelte: [],
+      prezzo_unitario: Number(p.prezzo_base),
+      prezzo_riga: Number(p.prezzo_base)
+    });
+    document.getElementById('dettaglio-ordine-cerca-prodotto').value = '';
+    document.getElementById('dettaglio-ordine-risultati-ricerca').innerHTML = '';
+    renderRigheOrdineModificabili();
+  };
+
+  window.salvaModificheOrdine = async function() {
+    clearMsg('dettaglio-ordine-msg');
+    const ordineId = document.getElementById('dettaglio-ordine-id').value;
+    if (!ordineId) return;
+    if (!righeCorrentiOrdine.length) {
+      showMsg('dettaglio-ordine-msg', 'Un ordine non può restare senza prodotti. Elimina l\'intero ordine se serve svuotarlo.', 'error');
+      return;
+    }
+
+    // Semplice: eliminiamo tutte le righe e riscriviamo quelle attuali, stesso
+    // schema/pattern usato quando l'ordine viene creato la prima volta dal sito.
+    const { error: errDelete } = await sbClient.from('ordini_righe').delete().eq('ordine_id', ordineId);
+    if (errDelete) { showMsg('dettaglio-ordine-msg', 'Errore: ' + errDelete.message, 'error'); return; }
+
+    const nuoveRighe = righeCorrentiOrdine.map(r => ({
+      ordine_id: ordineId,
+      prodotto_id: r.prodotto_id,
+      prodotto_nome: r.prodotto_nome,
+      quantita: r.quantita,
+      opzioni_scelte: r.opzioni_scelte || [],
+      prezzo_unitario: r.prezzo_unitario,
+      prezzo_riga: Number(r.prezzo_unitario) * r.quantita
+    }));
+    const { error: errInsert } = await sbClient.from('ordini_righe').insert(nuoveRighe);
+    if (errInsert) { showMsg('dettaglio-ordine-msg', 'Errore: ' + errInsert.message, 'error'); return; }
+
+    const nuovoTotale = nuoveRighe.reduce((somma, r) => somma + r.prezzo_riga, 0);
+    const { error: errTotale } = await sbClient.from('ordini').update({ totale: nuovoTotale }).eq('id', ordineId);
+    if (errTotale) { showMsg('dettaglio-ordine-msg', 'Errore aggiornando il totale: ' + errTotale.message, 'error'); return; }
+
+    showMsg('dettaglio-ordine-msg', 'Modifiche salvate. Usa "Stampa riepilogo" per stampare il nuovo conto.', 'ok');
+    await caricaOrdini();
+  };
+
   window.apriDettaglioOrdine = async function(ordineId) {
     const o = ordiniCache.find(x => x.id === ordineId);
     if (!o) return;
@@ -3933,20 +4149,14 @@ const ICONE_CATEGORIA_BASE64 = {
       .from('ordini_righe').select('*')
       .eq('ordine_id', ordineId);
 
-    const cont = document.getElementById('dettaglio-ordine-righe');
-    if (error || !righe || !righe.length) {
-      cont.innerHTML = '<div class="empty-state">Nessuna riga trovata.</div>';
-    } else {
-      cont.innerHTML = righe.map(r => `
-        <div class="opt-row">
-          <span>
-            <strong>${r.quantita}×</strong> ${escapeHtml(r.prodotto_nome)}
-            ${(r.opzioni_scelte || []).length ? '<br><span style="font-size:12px; color:var(--ink-dim);">' + r.opzioni_scelte.map(op => escapeHtml(op.gruppo + ' ' + op.nome)).join(' · ') + '</span>' : ''}
-          </span>
-          <span>€${Number(r.prezzo_riga).toFixed(2)}</span>
-        </div>
-      `).join('');
-    }
+    // Copia di lavoro modificabile in memoria: le modifiche diventano definitive
+    // solo premendo "Salva modifiche".
+    righeCorrentiOrdine = (righe || []).map(r => ({ ...r }));
+    renderRigheOrdineModificabili();
+
+    document.getElementById('dettaglio-ordine-cerca-prodotto').value = '';
+    document.getElementById('dettaglio-ordine-risultati-ricerca').innerHTML = '';
+    clearMsg('dettaglio-ordine-msg');
 
     document.getElementById('dettaglio-ordine-note').textContent = o.note ? ('Note: ' + o.note) : '';
 
