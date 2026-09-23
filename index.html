@@ -2846,13 +2846,36 @@ const ICONE_CATEGORIA_BASE64 = {
     `).join('');
   }
 
-  // ================= COLLEGA GRUPPO A INTERE CATEGORIE =================
+  // ================= COLLEGA GRUPPO (O SINGOLA OPZIONE) A INTERE CATEGORIE =================
   let collegaCatGruppoId = null;
+  let collegaCatOpzioneId = null; // se valorizzato, si collega SOLO questa opzione, non tutto il gruppo
 
   window.apriCollegaCategorie = function(gruppoId) {
     collegaCatGruppoId = gruppoId;
+    collegaCatOpzioneId = null;
     const gruppo = variazioniCache.find(v => v.id === gruppoId);
     document.getElementById('collega-cat-gruppo-nome').textContent = gruppo ? gruppo.nome_gruppo : '';
+    clearMsg('collega-cat-msg');
+
+    const cont = document.getElementById('collega-cat-lista');
+    if (!categorieCache.length) {
+      cont.innerHTML = '<div class="empty-state">Nessuna categoria creata.</div>';
+    } else {
+      cont.innerHTML = categorieCache.map(c => `
+        <label style="display:flex; align-items:center; gap:10px; padding:8px 4px; border-bottom:1px solid var(--border); cursor:pointer;">
+          <input type="checkbox" class="chk-collega-categoria" value="${c.id}" style="width:auto;">
+          ${escapeHtml(c.nome)}
+        </label>
+      `).join('');
+    }
+    openModal('modal-collega-categorie');
+  };
+
+  // Come sopra, ma per UNA SOLA opzione (es. "Abbondante"), non tutto il gruppo.
+  window.apriCollegaCategorieOpzione = function(opzioneId, opzioneNome) {
+    collegaCatGruppoId = null;
+    collegaCatOpzioneId = opzioneId;
+    document.getElementById('collega-cat-gruppo-nome').textContent = opzioneNome;
     clearMsg('collega-cat-msg');
 
     const cont = document.getElementById('collega-cat-lista');
@@ -2876,10 +2899,16 @@ const ICONE_CATEGORIA_BASE64 = {
       showMsg('collega-cat-msg', 'Seleziona almeno una categoria.', 'error');
       return;
     }
-    const gruppo = variazioniCache.find(v => v.id === collegaCatGruppoId);
-    const idOpzioni = (gruppo?.opzioni_variazione || []).map(o => o.id);
+
+    let idOpzioni;
+    if (collegaCatOpzioneId) {
+      idOpzioni = [collegaCatOpzioneId]; // modalità singola opzione
+    } else {
+      const gruppo = variazioniCache.find(v => v.id === collegaCatGruppoId);
+      idOpzioni = (gruppo?.opzioni_variazione || []).map(o => o.id);
+    }
     if (!idOpzioni.length) {
-      showMsg('collega-cat-msg', 'Questo gruppo non ha ancora nessuna opzione: aggiungine prima almeno una.', 'error');
+      showMsg('collega-cat-msg', 'Nessuna opzione da collegare (il gruppo è vuoto?).', 'error');
       return;
     }
 
@@ -2906,12 +2935,13 @@ const ICONE_CATEGORIA_BASE64 = {
     }
 
     if (!righeDaInserire.length) {
-      showMsg('collega-cat-msg', 'Questo gruppo è già collegato a tutti i prodotti di quelle categorie.', 'ok');
+      showMsg('collega-cat-msg', (collegaCatOpzioneId ? 'Questa opzione è' : 'Questo gruppo è') + ' già collegato/a a tutti i prodotti di quelle categorie.', 'ok');
       return;
     }
 
     const { error: errInserimento } = await sbClient.from('prodotti_opzioni_variazione').insert(righeDaInserire);
     if (errInserimento) { showMsg('collega-cat-msg', 'Errore: ' + errInserimento.message, 'error'); return; }
+
 
     showMsg('collega-cat-msg', `Fatto! Collegato a ${idProdotti.length} prodotto/i (${righeDaInserire.length} nuove opzioni collegate).`, 'ok');
     await caricaProdotti();
