@@ -224,6 +224,11 @@
   /* Il dettaglio ordine deve poter aprirsi sopra ad altri popup già aperti
      (es. dallo storico cliente), qualunque sia l'ordine nel markup. */
   #modal-dettaglio-ordine { z-index: 200; }
+  /* Questi due si aprono SOPRA ad altri modal già aperti (modifica variazioni sopra
+     al dettaglio ordine, collega-categorie sopra al modal Opzioni): devono stare
+     sempre più in alto, altrimenti restano nascosti dietro senza sembrare aperti. */
+  #modal-modifica-variazioni-riga { z-index: 300; }
+  #modal-collega-categorie { z-index: 250; }
   .modal-backdrop.show { display: flex; }
 
   .modal {
@@ -238,6 +243,36 @@
   }
 
   .modal h3 { margin: 0 0 18px 0; font-size: 16px; }
+
+  /* Finestre secondarie (si aprono sopra ad altre già aperte): un po' più grandi,
+     con testi/pulsanti leggermente più leggibili al loro interno. */
+  #modal-modifica-variazioni-riga .modal,
+  #modal-opzioni .modal,
+  #modal-collega-categorie .modal {
+    max-width: 560px;
+  }
+  #modal-modifica-variazioni-riga h3,
+  #modal-opzioni h3,
+  #modal-collega-categorie h3 {
+    font-size: 19px;
+  }
+  #modal-modifica-variazioni-riga label,
+  #modal-collega-categorie label {
+    font-size: 16px !important;
+    padding-top: 10px !important;
+    padding-bottom: 10px !important;
+  }
+  #modal-modifica-variazioni-riga input[type="checkbox"],
+  #modal-collega-categorie input[type="checkbox"] {
+    width: 20px !important;
+    height: 20px !important;
+  }
+  #modal-modifica-variazioni-riga .modal-actions button,
+  #modal-opzioni .modal-actions button,
+  #modal-collega-categorie .modal-actions button {
+    font-size: 15px;
+    padding: 12px 22px;
+  }
 
   .modal-actions {
     display: flex;
