@@ -708,6 +708,18 @@
   </main>
 </div>
 
+<!-- ============ MODAL MODIFICA VARIAZIONI RIGA ORDINE ============ -->
+<div class="modal-backdrop" id="modal-modifica-variazioni-riga">
+  <div class="modal">
+    <h3>Variazioni — <span id="modifica-var-riga-nome-prodotto"></span></h3>
+    <div id="modifica-var-riga-lista" style="max-height:360px; overflow-y:auto; margin-top:10px;"></div>
+    <div class="modal-actions">
+      <button type="button" class="secondary" onclick="closeModal('modal-modifica-variazioni-riga')">Annulla</button>
+      <button type="button" id="btn-salva-variazioni-riga-ordine">Applica</button>
+    </div>
+  </div>
+</div>
+
 <!-- ============ MODAL COLLEGA GRUPPO A CATEGORIE ============ -->
 <div class="modal-backdrop" id="modal-collega-categorie">
   <div class="modal">
@@ -1129,7 +1141,7 @@
 
 <!-- ============ MODAL DETTAGLIO ORDINE ============ -->
 <div class="modal-backdrop" id="modal-dettaglio-ordine">
-  <div class="modal">
+  <div class="modal" style="max-width:620px;">
     <input type="hidden" id="dettaglio-ordine-id">
     <input type="hidden" id="dettaglio-ordine-numero">
     <h3>Ordine — <span id="dettaglio-ordine-cliente"></span></h3>
@@ -4033,22 +4045,30 @@ const ICONE_CATEGORIA_BASE64 = {
     }
     cont.innerHTML = righeCorrentiOrdine.map((r, indice) => `
       <div class="opt-row">
-        <span>
-          <input type="number" min="1" value="${r.quantita}" data-indice="${indice}" class="input-qty-riga-ordine" style="width:56px; padding:4px 6px; margin-right:8px;">
-          ${escapeHtml(r.prodotto_nome)}
-          ${(r.opzioni_scelte || []).length ? '<br><span style="font-size:12px; color:var(--ink-dim); margin-left:64px;">' + r.opzioni_scelte.map(op => escapeHtml(op.gruppo + ' ' + op.nome)).join(' · ') + '</span>' : ''}
-        </span>
         <span style="display:flex; align-items:center; gap:10px;">
+          <span style="display:inline-flex; align-items:center; gap:6px;">
+            <button type="button" class="secondary btn-qty-riga-ordine" data-indice="${indice}" data-delta="-1" style="width:26px; height:26px; padding:0; border-radius:50%;">−</button>
+            <span style="min-width:18px; text-align:center; font-weight:700;">${r.quantita}</span>
+            <button type="button" class="secondary btn-qty-riga-ordine" data-indice="${indice}" data-delta="1" style="width:26px; height:26px; padding:0; border-radius:50%;">+</button>
+          </span>
+          <span>
+            ${escapeHtml(r.prodotto_nome)}
+            ${(r.opzioni_scelte || []).length ? '<br><span style="font-size:12px; color:var(--ink-dim);">' + r.opzioni_scelte.map(op => escapeHtml((op.tipo === 'eliminazione' ? '-' : '+') + op.nome)).join(' · ') + '</span>' : ''}
+          </span>
+        </span>
+        <span style="display:flex; align-items:center; gap:8px;">
           €${(Number(r.prezzo_unitario) * r.quantita).toFixed(2)}
+          <button type="button" class="secondary" style="padding:4px 8px; font-size:12px;" onclick="apriModificaVariazioniRigaOrdine(${indice})">✏️</button>
           <button type="button" class="danger" style="padding:4px 8px; font-size:12px;" onclick="rimuoviRigaOrdine(${indice})">🗑</button>
         </span>
       </div>
     `).join('');
 
-    cont.querySelectorAll('.input-qty-riga-ordine').forEach(input => {
-      input.addEventListener('change', () => {
-        const indice = parseInt(input.dataset.indice);
-        const nuovaQta = Math.max(1, parseInt(input.value) || 1);
+    cont.querySelectorAll('.btn-qty-riga-ordine').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const indice = parseInt(btn.dataset.indice);
+        const delta = parseInt(btn.dataset.delta);
+        const nuovaQta = Math.max(1, righeCorrentiOrdine[indice].quantita + delta);
         righeCorrentiOrdine[indice].quantita = nuovaQta;
         righeCorrentiOrdine[indice].prezzo_riga = Number(righeCorrentiOrdine[indice].prezzo_unitario) * nuovaQta;
         renderRigheOrdineModificabili();
@@ -4060,6 +4080,66 @@ const ICONE_CATEGORIA_BASE64 = {
     righeCorrentiOrdine.splice(indice, 1);
     renderRigheOrdineModificabili();
   };
+
+  // ================= MODIFICA VARIAZIONI DI UNA RIGA ORDINE ESISTENTE =================
+  let modificaVariazioniRigaIndice = null;
+
+  window.apriModificaVariazioniRigaOrdine = function(indice) {
+    modificaVariazioniRigaIndice = indice;
+    const riga = righeCorrentiOrdine[indice];
+    const prodotto = prodottiCache.find(p => p.id === riga.prodotto_id);
+    document.getElementById('modifica-var-riga-nome-prodotto').textContent = riga.prodotto_nome;
+    const cont = document.getElementById('modifica-var-riga-lista');
+
+    if (!prodotto) {
+      cont.innerHTML = '<div class="empty-state">Prodotto non trovato nel catalogo (forse eliminato): non è possibile modificarne le variazioni, solo rimuovere la riga.</div>';
+      openModal('modal-modifica-variazioni-riga');
+      return;
+    }
+
+    const idOpzioniProdotto = new Set((prodotto.prodotti_opzioni_variazione || []).map(x => x.opzione_variazione_id));
+    const opzioniScelteAttuali = new Set((riga.opzioni_scelte || []).map(o => o.gruppo + '|' + o.nome));
+    const gruppiRilevanti = variazioniCache.filter(v => (v.opzioni_variazione || []).some(o => idOpzioniProdotto.has(o.id)));
+
+    cont.innerHTML = gruppiRilevanti.length ? gruppiRilevanti.map(g => `
+      <div style="margin-bottom:12px;">
+        <div style="font-weight:700; font-size:13px; margin-bottom:4px;">${escapeHtml(g.nome_gruppo)}</div>
+        ${g.opzioni_variazione.filter(o => idOpzioniProdotto.has(o.id)).map(o => `
+          <label style="display:flex; align-items:center; gap:8px; padding:5px 4px; border-bottom:1px solid var(--border); cursor:pointer;">
+            <input type="checkbox" class="chk-var-riga-ordine" data-gruppo="${escapeHtml(g.nome_gruppo)}" data-nome="${escapeHtml(o.nome)}" data-prezzo="${o.prezzo_aggiuntivo}" data-tipo="${g.tipo}"
+              ${opzioniScelteAttuali.has(g.nome_gruppo + '|' + o.nome) ? 'checked' : ''} style="width:auto;">
+            ${escapeHtml(o.nome)} ${Number(o.prezzo_aggiuntivo) ? `<span class="meta">+€${Number(o.prezzo_aggiuntivo).toFixed(2)}</span>` : ''}
+          </label>
+        `).join('')}
+      </div>
+    `).join('') : '<div class="empty-state">Nessuna variazione collegata a questo prodotto.</div>';
+
+    openModal('modal-modifica-variazioni-riga');
+  };
+
+  document.getElementById('btn-salva-variazioni-riga-ordine').addEventListener('click', () => {
+    if (modificaVariazioniRigaIndice === null) { closeModal('modal-modifica-variazioni-riga'); return; }
+    const indice = modificaVariazioniRigaIndice;
+    const riga = righeCorrentiOrdine[indice];
+    const prodotto = prodottiCache.find(p => p.id === riga.prodotto_id);
+
+    const nuoveOpzioni = Array.from(document.querySelectorAll('.chk-var-riga-ordine:checked')).map(chk => ({
+      gruppo: chk.dataset.gruppo,
+      nome: chk.dataset.nome,
+      prezzo: Number(chk.dataset.prezzo) || 0,
+      tipo: chk.dataset.tipo
+    }));
+
+    const prezzoBase = prodotto ? Number(prodotto.prezzo_base) : (Number(riga.prezzo_unitario) - (riga.opzioni_scelte || []).reduce((s, o) => s + Number(o.prezzo || 0), 0));
+    const extra = nuoveOpzioni.reduce((s, o) => s + o.prezzo, 0);
+
+    riga.opzioni_scelte = nuoveOpzioni;
+    riga.prezzo_unitario = prezzoBase + extra;
+    riga.prezzo_riga = riga.prezzo_unitario * riga.quantita;
+
+    closeModal('modal-modifica-variazioni-riga');
+    renderRigheOrdineModificabili();
+  });
 
   document.getElementById('dettaglio-ordine-cerca-prodotto').addEventListener('input', (e) => {
     const query = normalizzaTesto(e.target.value);
@@ -4118,10 +4198,14 @@ const ICONE_CATEGORIA_BASE64 = {
     if (errInsert) { showMsg('dettaglio-ordine-msg', 'Errore: ' + errInsert.message, 'error'); return; }
 
     const nuovoTotale = nuoveRighe.reduce((somma, r) => somma + r.prezzo_riga, 0);
-    const { error: errTotale } = await sbClient.from('ordini').update({ totale: nuovoTotale }).eq('id', ordineId);
+    const { error: errTotale } = await sbClient.from('ordini').update({ totale: nuovoTotale, richiesta_aggiornamento_pos: true }).eq('id', ordineId);
     if (errTotale) { showMsg('dettaglio-ordine-msg', 'Errore aggiornando il totale: ' + errTotale.message, 'error'); return; }
 
-    showMsg('dettaglio-ordine-msg', 'Modifiche salvate. Usa "Stampa riepilogo" per stampare il nuovo conto.', 'ok');
+    if (window.AndroidBridge && window.AndroidBridge.attivaControlloOrdiniOra) {
+      window.AndroidBridge.attivaControlloOrdiniOra();
+    }
+
+    showMsg('dettaglio-ordine-msg', 'Modifiche salvate: il movimento su RistorAndro verrà aggiornato a breve. Usa "Stampa riepilogo" per il nuovo conto.', 'ok');
     await caricaOrdini();
   };
 
