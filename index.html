@@ -1097,6 +1097,13 @@
 
       <div style="margin-top:14px; padding-top:14px; border-top:1px solid var(--border);">
         <label style="display:flex; align-items:center; gap:8px; margin-top:0;">
+          <input type="checkbox" id="gruppo-scelta-singola" style="width:auto;"> Scelta singola (una sola opzione, senza quantità)
+        </label>
+        <p style="font-size:12px; color:var(--ink-dim); margin-top:4px;">Es. "Scegli tipo PANE": il cliente sceglie UNA sola opzione tra tante, senza poter mettere una quantità. Attivandolo, imposta da solo "Scelte massime" a 1 e disattiva "Abilita quantità" qui sotto.</p>
+      </div>
+
+      <div style="margin-top:14px; padding-top:14px; border-top:1px solid var(--border);">
+        <label style="display:flex; align-items:center; gap:8px; margin-top:0;">
           <input type="checkbox" id="gruppo-post-aggiunta-carrello" style="width:auto;"> Mostra come suggerimento DOPO "Aggiungi al carrello"
         </label>
         <p style="font-size:12px; color:var(--ink-dim); margin-top:4px;">Es. "Hai bisogno anche di...": posate, pane, tovaglioli. Questo gruppo non compare nella scelta variazioni del prodotto, ma in un popup subito dopo che il cliente ha premuto "Aggiungi al carrello", con l'opzione di proseguire senza aggiungere nulla.</p>
@@ -1104,9 +1111,9 @@
 
       <div style="margin-top:14px; padding-top:14px; border-top:1px solid var(--border);">
         <label style="display:flex; align-items:center; gap:8px; margin-top:0;">
-          <input type="checkbox" id="gruppo-abilita-quantita" style="width:auto;"> Abilita quantità sulle opzioni
+          <input type="checkbox" id="gruppo-abilita-quantita" style="width:auto;"> Quantità di default per le nuove opzioni
         </label>
-        <p style="font-size:12px; color:var(--ink-dim); margin-top:4px;">Es. "Mozzarella x2". Se attiva, il cliente sceglie un numero (0, 1, 2...) per ciascuna opzione invece di una semplice spunta.</p>
+        <p style="font-size:12px; color:var(--ink-dim); margin-top:4px;">Es. "Mozzarella x2". Imposta solo il valore di partenza per le opzioni che aggiungerai da qui in poi a questo gruppo — ogni opzione può poi essere attivata/disattivata singolarmente dalla schermata "Opzioni" (alcune con quantità, altre no, anche nello stesso gruppo).</p>
       </div>
 
       <div style="margin-top:14px; padding-top:14px; border-top:1px solid var(--border);">
@@ -1150,6 +1157,9 @@
           <input type="text" placeholder="Nome opzione (es. Piccola)" id="nuova-opzione-nome">
           <input type="number" placeholder="Prezzo extra €" step="0.01" id="nuova-opzione-prezzo" style="max-width:120px;">
         </div>
+        <label style="display:flex; align-items:center; gap:8px; margin-top:10px; font-size:13px;">
+          <input type="checkbox" id="gruppo-abilita-quantita-default" style="width:auto;"> Con quantità (0,1,2...) invece di semplice spunta
+        </label>
         <button type="button" id="btn-aggiungi-opzione" style="margin-top:14px;">+ Aggiungi opzione</button>
       </div>
 
@@ -2956,6 +2966,8 @@ const ICONE_CATEGORIA_BASE64 = {
     document.getElementById('gruppo-abilita-quantita').checked = false;
     document.getElementById('gruppo-suggerisce-prodotti').checked = false;
     document.getElementById('gruppo-post-aggiunta-carrello').disabled = false;
+    document.getElementById('gruppo-scelta-singola').checked = false;
+    aggiornaSceltaSingolaGruppo();
     document.getElementById('modal-gruppo-title').textContent = 'Nuovo gruppo variazione';
     clearMsg('gruppo-msg');
     openModal('modal-gruppo-variazione');
@@ -2973,6 +2985,25 @@ const ICONE_CATEGORIA_BASE64 = {
     }
   });
 
+  // "Scelta singola": scorciatoia che, se attiva, forza "Scelte massime"=1 e disattiva
+  // "Abilita quantità" (non ha senso avere una quantità se si può scegliere una sola
+  // opzione). Non è un campo salvato a parte: imposta semplicemente gli altri due.
+  function aggiornaSceltaSingolaGruppo() {
+    const attiva = document.getElementById('gruppo-scelta-singola').checked;
+    const campoMax = document.getElementById('gruppo-max');
+    const campoQuantita = document.getElementById('gruppo-abilita-quantita');
+    if (attiva) {
+      campoMax.value = 1;
+      campoMax.disabled = true;
+      campoQuantita.checked = false;
+      campoQuantita.disabled = true;
+    } else {
+      campoMax.disabled = false;
+      campoQuantita.disabled = false;
+    }
+  }
+  document.getElementById('gruppo-scelta-singola').addEventListener('change', aggiornaSceltaSingolaGruppo);
+
   window.modificaGruppo = function(id) {
     const v = variazioniCache.find(x => x.id === id);
     if (!v) return;
@@ -2985,6 +3016,8 @@ const ICONE_CATEGORIA_BASE64 = {
     document.getElementById('gruppo-abilita-quantita').checked = !!v.abilita_quantita;
     document.getElementById('gruppo-suggerisce-prodotti').checked = !!v.suggerisce_prodotti;
     document.getElementById('gruppo-post-aggiunta-carrello').disabled = !!v.suggerisce_prodotti;
+    document.getElementById('gruppo-scelta-singola').checked = (Number(v.max_scelte) === 1 && !v.abilita_quantita);
+    aggiornaSceltaSingolaGruppo();
     document.getElementById('modal-gruppo-title').textContent = 'Modifica gruppo variazione';
     clearMsg('gruppo-msg');
     openModal('modal-gruppo-variazione');
@@ -3039,6 +3072,7 @@ const ICONE_CATEGORIA_BASE64 = {
     document.getElementById('opzioni-gruppo-nome').textContent = v ? v.nome_gruppo : '';
     document.getElementById('nuova-opzione-nome').value = '';
     document.getElementById('nuova-opzione-prezzo').value = '';
+    document.getElementById('gruppo-abilita-quantita-default').checked = !!(v && v.abilita_quantita);
     document.getElementById('import-opzioni-excel').value = '';
     document.getElementById('suggeriti-ricerca').value = '';
     clearMsg('opzioni-msg');
@@ -3187,12 +3221,26 @@ const ICONE_CATEGORIA_BASE64 = {
     cont.innerHTML = `<div class="var-group">` + data.map(o => `
       <div class="opt-row">
         <span>${escapeHtml(o.nome)} ${o.prezzo_aggiuntivo > 0 ? '(+€' + Number(o.prezzo_aggiuntivo).toFixed(2) + ')' : ''}</span>
-        <span class="opt-actions">
+        <span class="opt-actions" style="display:flex; align-items:center; gap:8px;">
+          <label style="display:flex; align-items:center; gap:4px; font-size:12px; color:var(--ink-dim); cursor:pointer;" title="Il cliente sceglie una quantità (0,1,2...) invece di una semplice spunta, solo per questa opzione">
+            <input type="checkbox" class="chk-qta-opzione" data-id="${o.id}" ${o.abilita_quantita ? 'checked' : ''} style="width:auto;"> Qtà
+          </label>
           <button class="secondary" style="padding:2px 8px;" title="Collega questa opzione a tutti i prodotti di alcune categorie" onclick="apriCollegaCategorieOpzione('${o.id}', '${escapeHtml(o.nome).replace(/'/g, "\\'")}')">⋮</button>
           <button class="danger" onclick="eliminaOpzione('${o.id}')">×</button>
         </span>
       </div>
     `).join('') + `</div>`;
+
+    cont.querySelectorAll('.chk-qta-opzione').forEach(chk => {
+      chk.addEventListener('change', async () => {
+        chk.disabled = true;
+        const { error } = await sbClient.from('opzioni_variazione').update({ abilita_quantita: chk.checked }).eq('id', chk.dataset.id);
+        chk.disabled = false;
+        if (error) { alert('Errore: ' + error.message); chk.checked = !chk.checked; return; }
+        const opz = opzioniGruppoCorrente.find(o => o.id === chk.dataset.id);
+        if (opz) opz.abilita_quantita = chk.checked;
+      });
+    });
   }
 
   document.getElementById('btn-aggiungi-opzione').addEventListener('click', async () => {
@@ -3209,7 +3257,8 @@ const ICONE_CATEGORIA_BASE64 = {
     const { error } = await sbClient.from('opzioni_variazione').insert({
       variazione_id: currentVariazioneIdOpzioni,
       nome,
-      prezzo_aggiuntivo: parseFloat(prezzo) || 0
+      prezzo_aggiuntivo: parseFloat(prezzo) || 0,
+      abilita_quantita: document.getElementById('gruppo-abilita-quantita-default')?.checked || false
     });
 
     if (error) { showMsg('opzioni-msg', 'Errore: ' + error.message, 'error'); return; }
@@ -3987,6 +4036,14 @@ const ICONE_CATEGORIA_BASE64 = {
   // ================= ORDINI =================
   let ordiniCache = [];
 
+  // Ora in cui il cliente ha effettuato l'ordine (creato_il), in fuso italiano: "gg/mm HH:mm"
+  function oraOrdineCliente(o) {
+    if (!o || !o.creato_il) return '';
+    const d = new Date(o.creato_il);
+    if (isNaN(d)) return '';
+    return d.toLocaleString('it-IT', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Rome' }).replace(',', '');
+  }
+
   async function caricaOrdini() {
     const { data, error } = await sbClient
       .from('ordini').select('*, clienti(nome, cognome, telefono)')
@@ -4025,6 +4082,7 @@ const ICONE_CATEGORIA_BASE64 = {
               <div style="font-size:17px; font-weight:700; color:var(--accent); margin-top:4px;">
                 📞 ${escapeHtml(telefono)} &nbsp;·&nbsp; ${dataFormattata} &nbsp;alle&nbsp; ${o.ora_ritiro.slice(0,5)}
               </div>
+              ${oraOrdineCliente(o) ? `<div style="font-size:14px; color:var(--ink-dim); margin-top:2px;">🕒 Ordinato il ${oraOrdineCliente(o)}</div>` : ''}
               <div class="meta" style="margin-top:4px;">
                 <span class="badge">${escapeHtml(o.stato)}</span>
                 ${nonStampato ? `<span class="badge" style="background:var(--error); color:#fff; border-color:var(--error);">⚠️ NON STAMPATO — in coda (${o.tentativi_stampa} tentativi/o)</span>` : ''}
@@ -4292,6 +4350,7 @@ const ICONE_CATEGORIA_BASE64 = {
         📞 ${escapeHtml(o.clienti ? o.clienti.telefono : '—')}<br>
         🗓️ ${escapeHtml(dataFormattata)} alle ${o.ora_ritiro.slice(0,5)}
       </div>
+      ${oraOrdineCliente(o) ? `<div style="font-size:15px; color:var(--ink-dim); margin-bottom:4px;">🕒 Ordinato il ${oraOrdineCliente(o)}</div>` : ''}
       <div style="font-size:13px; color:var(--ink-dim);">Stato: ${escapeHtml(o.stato)}</div>`;
 
     const { data: righe, error } = await sbClient
