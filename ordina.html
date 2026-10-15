@@ -771,7 +771,7 @@
   </div>
 </div>
 
-<div style="position:fixed; bottom:4px; right:6px; font-size:10px; color:#b2a878; z-index:1;">v2026-08-08-e (descrizione categoria più visibile: grassetto e più grande)</div>
+<div style="position:fixed; bottom:4px; right:6px; font-size:10px; color:#b2a878; z-index:1;">v2026-08-08-f (quantità configurabile per singola opzione, non solo per gruppo)</div>
 
 <!-- ============ MODAL INSTALLA APP ============ -->
 <div class="modal-backdrop" id="modal-installa-app">
@@ -1610,7 +1610,7 @@ La cucina non è solo ciò che mangiamo. O meglio: non è solo questo. È l'elab
     allergeniList = allergeni || [];
 
     const { data: prodotti, error: erroreProdotti } = await sbClient
-      .from('prodotti').select('*, prodotti_opzioni_variazione(opzione_variazione_id, opzioni_variazione(id, nome, prezzo_aggiuntivo, variazione_id, prodotto_riferimento_id, prodotto_riferimento:prodotto_riferimento_id(id, nome, descrizione, prezzo_base, immagine_url, attivo), variazioni(id, nome_gruppo, obbligatorio, max_scelte, tipo, ordine_visualizzazione, post_aggiunta_carrello, abilita_quantita, suggerisce_prodotti))), prodotti_allergeni(allergene_id, allergeni(id, nome, icona))')
+      .from('prodotti').select('*, prodotti_opzioni_variazione(opzione_variazione_id, opzioni_variazione(id, nome, prezzo_aggiuntivo, abilita_quantita, variazione_id, prodotto_riferimento_id, prodotto_riferimento:prodotto_riferimento_id(id, nome, descrizione, prezzo_base, immagine_url, attivo), variazioni(id, nome_gruppo, obbligatorio, max_scelte, tipo, ordine_visualizzazione, post_aggiunta_carrello, abilita_quantita, suggerisce_prodotti))), prodotti_allergeni(allergene_id, allergeni(id, nome, icona))')
       .eq('tenant_id', TENANT_ID).eq('attivo', true)
       .order('ordine_visualizzazione');
     if (erroreProdotti) {
@@ -1944,7 +1944,11 @@ La cucina non è solo ciò che mangiamo. O meglio: non è solo questo. È l'elab
   function renderGruppoVariazioneHtml(g) {
     if (g.gruppo.suggerisce_prodotti) return renderGruppoProdottiSuggeritiHtml(g);
 
-    const isQty = !!g.gruppo.abilita_quantita;
+    // "isQty" qui serve solo per il testo di suggerimento del gruppo (scritto in modo
+    // generico); il rendering di OGNI opzione dipende dal SUO proprio flag, non da
+    // quello del gruppo: in uno stesso gruppo alcune opzioni possono avere la quantità
+    // e altre essere una semplice spunta.
+    const isQty = g.opzioni.some(o => o.abilita_quantita);
     const isRadio = !isQty && g.gruppo.max_scelte === 1;
     const tipo = g.gruppo.tipo || 'aggiunta';
     const senzaLimite = g.gruppo.max_scelte === 0;
@@ -1977,7 +1981,7 @@ La cucina non è solo ciò che mangiamo. O meglio: non è solo questo. È l'elab
           <span>${tipo === 'eliminazione' ? '➖' : tipo === 'aggiunta' ? '➕' : ''} ${escapeHtml(g.gruppo.nome_gruppo)} ${g.gruppo.obbligatorio ? '<span class="badge">Obbligatorio</span>' : ''}</span>
           <span class="hint">${testoSuggerimento}</span>
         </div>
-        ${g.opzioni.map(o => isQty ? `
+        ${g.opzioni.map(o => o.abilita_quantita ? `
           <div class="var-opzione-riga" data-gruppo-riga="${g.gruppo.id}" data-nome-normalizzato="${escapeHtml(normalizzaTesto(o.nome))}">
             <label style="flex:1;">${escapeHtml(o.nome)} ${o.prezzo_aggiuntivo > 0 ? `<span class="var-opzione-extra">+${formatEuro(o.prezzo_aggiuntivo)} cad.</span>` : ''}</label>
             <div class="carrello-riga-azioni" style="margin-top:0;">
@@ -2071,24 +2075,24 @@ La cucina non è solo ciò che mangiamo. O meglio: non è solo questo. È l'elab
         });
         return;
       }
-      if (g.gruppo.abilita_quantita) {
-        g.opzioni.forEach(o => {
+      // Per i gruppi normali, ogni opzione decide da sola (o.abilita_quantita) se va
+      // letta come quantità o come semplice spunta — possono convivere nello stesso gruppo.
+      g.opzioni.forEach(o => {
+        if (o.abilita_quantita) {
           const span = cont.querySelector(`.val-qty-opzione[data-gruppo="${g.gruppo.id}"][data-opzione="${o.id}"]`);
           const qty = span ? (parseInt(span.textContent) || 0) : 0;
           if (qty > 0) {
             extra += (Number(o.prezzo_aggiuntivo) || 0) * qty;
             opzioniScelte.push({ gruppo: g.gruppo.nome_gruppo, nome: o.nome, prezzo: Number(o.prezzo_aggiuntivo) || 0, quantita: qty, tipo: g.gruppo.tipo || 'aggiunta' });
           }
-        });
-      } else {
-        cont.querySelectorAll(`.chk-var-cliente[data-gruppo="${g.gruppo.id}"]:checked`).forEach(el => {
-          const o = g.opzioni.find(x => x.id === el.value);
-          if (o) {
+        } else {
+          const el = cont.querySelector(`.chk-var-cliente[data-gruppo="${g.gruppo.id}"][value="${o.id}"]`);
+          if (el && el.checked) {
             extra += Number(o.prezzo_aggiuntivo) || 0;
             opzioniScelte.push({ gruppo: g.gruppo.nome_gruppo, nome: o.nome, prezzo: Number(o.prezzo_aggiuntivo) || 0, tipo: g.gruppo.tipo || 'aggiunta' });
           }
-        });
-      }
+        }
+      });
     });
     return { extra, opzioniScelte, prodottiSuggeriti };
   }
@@ -2184,14 +2188,15 @@ La cucina non è solo ciò che mangiamo. O meglio: non è solo questo. È l'elab
 
     let totale = 0;
     gruppiConteggiati.forEach(g => {
-      if (g.gruppo.abilita_quantita) {
-        g.opzioni.forEach(o => {
+      g.opzioni.forEach(o => {
+        if (o.abilita_quantita) {
           const span = cont.querySelector(`.val-qty-opzione[data-gruppo="${g.gruppo.id}"][data-opzione="${o.id}"]`);
           totale += span ? (parseInt(span.textContent) || 0) : 0;
-        });
-      } else {
-        totale += cont.querySelectorAll(`.chk-var-cliente[data-gruppo="${g.gruppo.id}"]:checked`).length;
-      }
+        } else {
+          const el = cont.querySelector(`.chk-var-cliente[data-gruppo="${g.gruppo.id}"][value="${o.id}"]`);
+          if (el && el.checked) totale += 1;
+        }
+      });
     });
 
     if (badge) {
@@ -2202,16 +2207,15 @@ La cucina non è solo ciò che mangiamo. O meglio: non è solo questo. È l'elab
 
     const raggiunto = totale >= limite;
     gruppiConteggiati.forEach(g => {
-      if (g.gruppo.abilita_quantita) {
-        g.opzioni.forEach(o => {
+      g.opzioni.forEach(o => {
+        if (o.abilita_quantita) {
           const btnPiu = cont.querySelector(`.btn-qty-opzione[data-gruppo="${g.gruppo.id}"][data-opzione="${o.id}"][data-delta="1"]`);
           if (btnPiu) btnPiu.disabled = raggiunto;
-        });
-      } else {
-        cont.querySelectorAll(`.chk-var-cliente[data-gruppo="${g.gruppo.id}"]`).forEach(chk => {
-          if (!chk.checked) chk.disabled = raggiunto;
-        });
-      }
+        } else {
+          const el = cont.querySelector(`.chk-var-cliente[data-gruppo="${g.gruppo.id}"][value="${o.id}"]`);
+          if (el && !el.checked) el.disabled = raggiunto;
+        }
+      });
     });
   }
 
@@ -2224,10 +2228,14 @@ La cucina non è solo ciò che mangiamo. O meglio: non è solo questo. È l'elab
     for (const g of gruppiAttiviDettaglio) {
       if (!g.gruppo.obbligatorio) continue;
       let soddisfatto;
-      if (g.gruppo.abilita_quantita) {
+      if (g.opzioni.some(o => o.abilita_quantita)) {
         soddisfatto = g.opzioni.some(o => {
-          const span = cont.querySelector(`.val-qty-opzione[data-gruppo="${g.gruppo.id}"][data-opzione="${o.id}"]`);
-          return span && (parseInt(span.textContent) || 0) > 0;
+          if (o.abilita_quantita) {
+            const span = cont.querySelector(`.val-qty-opzione[data-gruppo="${g.gruppo.id}"][data-opzione="${o.id}"]`);
+            return span && (parseInt(span.textContent) || 0) > 0;
+          }
+          const el = cont.querySelector(`.chk-var-cliente[data-gruppo="${g.gruppo.id}"][value="${o.id}"]`);
+          return !!(el && el.checked);
         });
       } else {
         soddisfatto = cont.querySelectorAll(`.chk-var-cliente[data-gruppo="${g.gruppo.id}"]:checked`).length > 0;
@@ -2248,14 +2256,15 @@ La cucina non è solo ciò che mangiamo. O meglio: non è solo questo. È l'elab
       );
       let totaleAggiunte = 0;
       gruppiConteggiati.forEach(g => {
-        if (g.gruppo.abilita_quantita) {
-          g.opzioni.forEach(o => {
+        g.opzioni.forEach(o => {
+          if (o.abilita_quantita) {
             const span = cont.querySelector(`.val-qty-opzione[data-gruppo="${g.gruppo.id}"][data-opzione="${o.id}"]`);
             totaleAggiunte += span ? (parseInt(span.textContent) || 0) : 0;
-          });
-        } else {
-          totaleAggiunte += cont.querySelectorAll(`.chk-var-cliente[data-gruppo="${g.gruppo.id}"]:checked`).length;
-        }
+          } else {
+            const el = cont.querySelector(`.chk-var-cliente[data-gruppo="${g.gruppo.id}"][value="${o.id}"]`);
+            if (el && el.checked) totaleAggiunte += 1;
+          }
+        });
       });
       if (totaleAggiunte > limite) {
         showMsg('dettaglio-msg', `Puoi aggiungere al massimo ${limite} ingredienti in totale.`, 'error');
@@ -2525,7 +2534,7 @@ La cucina non è solo ciò che mangiamo. O meglio: non è solo questo. È l'elab
       g.opzioni.forEach(o => {
         const scelta = riga.opzioniScelte.find(sel => sel.gruppo === g.gruppo.nome_gruppo && sel.nome === o.nome);
         if (!scelta) return;
-        if (g.gruppo.abilita_quantita) {
+        if (o.abilita_quantita) {
           const span = cont.querySelector(`.val-qty-opzione[data-gruppo="${g.gruppo.id}"][data-opzione="${o.id}"]`);
           if (span) span.textContent = scelta.quantita || 1;
         } else {
@@ -2612,6 +2621,34 @@ La cucina non è solo ciò che mangiamo. O meglio: non è solo questo. È l'elab
       sel.innerHTML = '<option value="">Nessuna fascia disponibile per oggi</option>';
     } else {
       sel.innerHTML = slots.map(s => `<option value="${s}">${s}</option>`).join('');
+      aggiornaSlotOccupati(dataScelta);
+    }
+  }
+
+  // Se il locale accetta una sola consegna per fascia, disabilita gli orari già prenotati.
+  async function aggiornaSlotOccupati(dataScelta) {
+    if (!impostazioni || !impostazioni.una_consegna_per_fascia) return;
+    const sel = document.getElementById('campo-ora-ritiro');
+    try {
+      const { data, error } = await sbClient.rpc('slot_occupati', { p_tenant: TENANT_ID, p_data: dataScelta });
+      if (error) throw error;
+      if (document.getElementById('campo-data-ritiro').value !== dataScelta) return;
+      const occupati = new Set((data || []).map(r => String(typeof r === 'object' ? r.ora : r).slice(0, 5)));
+      let primoLibero = null;
+      Array.from(sel.options).forEach(opt => {
+        if (!opt.value) return;
+        const occupato = occupati.has(opt.value.padStart(5, '0'));
+        opt.disabled = occupato;
+        opt.textContent = occupato ? opt.value + ' (occupato)' : opt.value;
+        if (!occupato && primoLibero === null) primoLibero = opt.value;
+      });
+      if (primoLibero === null) {
+        sel.innerHTML = '<option value="">Tutti gli orari sono occupati per questo giorno</option>';
+      } else if (sel.selectedOptions[0] && sel.selectedOptions[0].disabled) {
+        sel.value = primoLibero;
+      }
+    } catch (e) {
+      console.warn('Impossibile leggere gli orari occupati:', e);
     }
   }
 
@@ -2638,7 +2675,15 @@ La cucina non è solo ciò che mangiamo. O meglio: non è solo questo. È l'elab
         data_ritiro: dataRitiro,
         ora_ritiro: oraRitiro
       }).select().single();
-      if (errOrdine) throw errOrdine;
+      if (errOrdine) {
+        if ((errOrdine.message || '').includes('SLOT_OCCUPATO')) {
+          showMsg('carrello-msg', 'Questo orario è appena stato prenotato da un altro cliente. Scegli un altro orario.', 'error');
+          generaFasceOrarie();
+          btn.disabled = false; btn.textContent = 'Conferma ordine';
+          return;
+        }
+        throw errOrdine;
+      }
 
       const righe = carrello.map(r => ({
         ordine_id: ordine.id,
